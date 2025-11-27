@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  tamil-panchang-api:
+    build: .
+    container_name: tamil-panchang-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Asia/Kolkata
+    labels:
+      # Traefik labels for reverse proxy
+      - "traefik.enable=true"
+      
+      # Router configuration
+      - "traefik.http.routers.panchang.rule=Host(`panchang.karthikwrites.com`)"
+      - "traefik.http.routers.panchang.entrypoints=websecure"
+      - "traefik.http.routers.panchang.tls.certresolver=letsencrypt"
+      - "traefik.http.services.panchang.loadbalancer.server.port=8000"
+      
+      # Rate limiting - Prevents abuse while keeping it public
+      # 100 requests per minute per IP
+      - "traefik.http.middlewares.panchang-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.panchang-ratelimit.ratelimit.period=1m"
+      - "traefik.http.middlewares.panchang-ratelimit.ratelimit.burst=50"
+      
+      # Apply rate limiting middleware
+      - "traefik.http.routers.panchang.middlewares=panchang-ratelimit"
+      
+      # Optional: Add CORS headers (already in FastAPI, but can add here too)
+      # - "traefik.http.middlewares.panchang-cors.headers.accesscontrolallowmethods=GET,POST,OPTIONS"
+      # - "traefik.http.middlewares.panchang-cors.headers.accesscontrolalloworigin=*"
+      
+      # Metadata labels (for documentation)
+      - "com.karthikwrites.app=tamil-panchang-api"
+      - "com.karthikwrites.description=Free Tamil Panchang API for community use"
+      - "com.karthikwrites.version=1.0.0"
+      
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  dokploy-network:
+    external: true

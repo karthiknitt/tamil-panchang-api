@@ -1,0 +1,36 @@
+name: Docker Build Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build Docker image
+      run: docker build -t tamil-panchang-api:test .
+    
+    - name: Test health endpoint
+      run: |
+        docker run -d --name test-api -p 8000:8000 tamil-panchang-api:test
+        sleep 10
+        curl -f http://localhost:8000/health || exit 1
+        docker stop test-api
+        docker rm test-api
+    
+    - name: Test API endpoint
+      run: |
+        docker run -d --name test-api -p 8000:8000 tamil-panchang-api:test
+        sleep 10
+        curl -X POST http://localhost:8000/api/today \
+          -H "Content-Type: application/json" \
+          -d '{"latitude":13.0827,"longitude":80.2707,"timezone":5.5}' \
+          -f || exit 1
+        docker stop test-api
+        docker rm test-api

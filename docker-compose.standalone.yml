@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  tamil-panchang-api:
+    build: .
+    container_name: tamil-panchang-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Asia/Kolkata
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
