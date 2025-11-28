@@ -36,7 +36,7 @@ wheels/
 .env
 .env.local
 *.md
-!README-GITHUB.md
+!README.md
 # Logs
 *.log
 

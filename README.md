@@ -92,7 +92,7 @@ curl -X POST "https://panchang.karthikwrites.com/api/today" \
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/YOUR_USERNAME/tamil-panchang-api.git
+git clone https://github.com/karthiknitt/tamil-panchang-api.git
 cd tamil-panchang-api
 ```
 
@@ -519,9 +519,7 @@ Based on nakshatra, determines suitable activities:
 ## 📚 Documentation Files
 
 - `README.md` - Comprehensive API documentation
-- `DEPLOYMENT.md` - Deployment guide
-- `SECURITY-RECOMMENDATIONS.md` - Public vs private considerations
-- `QUICK-REFERENCE.md` - Command cheat sheet
+
 
 ## 🤝 Contributing
 
@@ -544,8 +542,8 @@ MIT License - Free to use and modify
 ## 📞 Support
 
 - 📖 [API Documentation](https://panchang.karthikwrites.com/docs)
-- 🐛 [Report Issues](https://github.com/YOUR_USERNAME/tamil-panchang-api/issues)
-- 💬 [Discussions](https://github.com/YOUR_USERNAME/tamil-panchang-api/discussions)
+- 🐛 [Report Issues](https://github.com/karthiknitt/tamil-panchang-api/issues)
+- 💬 [Discussions](https://github.com/karthiknitt/tamil-panchang-api/discussions)
 
 ## ⭐ Show Your Support
 
