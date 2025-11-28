@@ -23,13 +23,15 @@ RUN mkdir -p /app/ephe && \
 
 # Copy application code
 COPY app.py .
+COPY mcp_server.py .
+COPY supervisord.conf /etc/supervisord.conf
 
-# Expose port
-EXPOSE 8000
+# Expose ports (FastAPI on 8000, MCP on 8001)
+EXPOSE 8000 8001
 
-# Health check
+# Health check (FastAPI endpoint)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-# Run the application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run both servers via supervisord
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]
