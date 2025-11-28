@@ -7,26 +7,39 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+      - "8001:8001"
     environment:
       - TZ=Asia/Kolkata
     labels:
       # Traefik labels for reverse proxy
       - "traefik.enable=true"
-      
-      # Router configuration
-      - "traefik.http.routers.panchang.rule=Host(`panchang.karthikwrites.com`)"
-      - "traefik.http.routers.panchang.entrypoints=websecure"
-      - "traefik.http.routers.panchang.tls.certresolver=letsencrypt"
-      - "traefik.http.services.panchang.loadbalancer.server.port=8000"
-      
+
+      # FastAPI Router - handles /api/*, /health, /docs, /redoc, /openapi.json, /
+      - "traefik.http.routers.panchang-api.rule=Host(`panchang.karthikwrites.com`) && (PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/docs`) || PathPrefix(`/redoc`) || PathPrefix(`/openapi.json`) || Path(`/`))"
+      - "traefik.http.routers.panchang-api.entrypoints=websecure"
+      - "traefik.http.routers.panchang-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.panchang-api.service=panchang-api"
+      - "traefik.http.services.panchang-api.loadbalancer.server.port=8000"
+
+      # MCP Router - handles /mcp/*
+      - "traefik.http.routers.panchang-mcp.rule=Host(`panchang.karthikwrites.com`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.panchang-mcp.entrypoints=websecure"
+      - "traefik.http.routers.panchang-mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.panchang-mcp.service=panchang-mcp"
+      - "traefik.http.services.panchang-mcp.loadbalancer.server.port=8001"
+
+      # Strip /mcp prefix before forwarding to MCP server
+      - "traefik.http.middlewares.mcp-stripprefix.stripprefix.prefixes=/mcp"
+      - "traefik.http.routers.panchang-mcp.middlewares=mcp-stripprefix,panchang-ratelimit"
+
       # Rate limiting - Prevents abuse while keeping it public
       # 100 requests per minute per IP
       - "traefik.http.middlewares.panchang-ratelimit.ratelimit.average=100"
       - "traefik.http.middlewares.panchang-ratelimit.ratelimit.period=1m"
       - "traefik.http.middlewares.panchang-ratelimit.ratelimit.burst=50"
-      
-      # Apply rate limiting middleware
-      - "traefik.http.routers.panchang.middlewares=panchang-ratelimit"
+
+      # Apply rate limiting middleware to FastAPI
+      - "traefik.http.routers.panchang-api.middlewares=panchang-ratelimit"
       
       # Optional: Add CORS headers (already in FastAPI, but can add here too)
       # - "traefik.http.middlewares.panchang-cors.headers.accesscontrolallowmethods=GET,POST,OPTIONS"
