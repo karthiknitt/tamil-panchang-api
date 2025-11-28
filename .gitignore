@@ -37,6 +37,10 @@ wheels/
 .env.local
 *.md
 !README.md
+!CONTRIBUTING.md
+!SECURITY.md
+
+
 # Logs
 *.log
 
