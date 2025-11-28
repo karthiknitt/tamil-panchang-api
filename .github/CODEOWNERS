@@ -1,0 +1,19 @@
+# Global code owners - all files require review from the maintainer
+* @karthiknitt
+
+# Core API implementation
+/app.py @karthiknitt
+
+# Dependencies
+/requirements.txt @karthiknitt
+
+# Configuration
+/Dockerfile @karthiknitt
+/docker-compose*.yml @karthiknitt
+/Procfile @karthiknitt
+
+# Tests
+/test_api.py @karthiknitt
+
+# GitHub workflows and CI/CD
+/.github/workflows/ @karthiknitt
