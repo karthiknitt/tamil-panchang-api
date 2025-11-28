@@ -28,6 +28,9 @@ wheels/
 
 # VS Code
 .vscode/
+.claude
+*.log
+*.json
 
 # Environment variables
 .env

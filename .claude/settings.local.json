@@ -8,7 +8,11 @@
       "Bash(python -m json.tool:*)",
       "Bash(timeout 10 bash:*)",
       "Bash(python3:*)",
-      "Bash(docker cp:*)"
+      "Bash(docker cp:*)",
+      "Bash(python app.py:*)",
+      "Bash(timeout 5 bash:*)",
+      "Bash(python:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
