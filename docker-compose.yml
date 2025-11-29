@@ -30,7 +30,16 @@ services:
 
       # Strip /mcp prefix before forwarding to MCP server
       - "traefik.http.middlewares.mcp-stripprefix.stripprefix.prefixes=/mcp"
-      - "traefik.http.routers.panchang-mcp.middlewares=mcp-stripprefix,panchang-ratelimit"
+
+      # SSE/Streaming configuration for MCP
+      - "traefik.http.middlewares.mcp-buffering.buffering.maxRequestBodyBytes=0"
+      - "traefik.http.middlewares.mcp-buffering.buffering.memRequestBodyBytes=0"
+      - "traefik.http.middlewares.mcp-buffering.buffering.maxResponseBodyBytes=0"
+      - "traefik.http.middlewares.mcp-buffering.buffering.memResponseBodyBytes=0"
+      - "traefik.http.services.panchang-mcp.loadbalancer.responseForwarding.flushInterval=1ms"
+
+      # Apply middlewares to MCP router
+      - "traefik.http.routers.panchang-mcp.middlewares=mcp-stripprefix,mcp-buffering,panchang-ratelimit"
 
       # Rate limiting - Prevents abuse while keeping it public
       # 100 requests per minute per IP
