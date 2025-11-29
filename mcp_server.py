@@ -228,6 +228,9 @@ def create_sse_server_app(mcp_server: Server) -> Starlette:
     async def handle_sse(request):
         """Handle SSE connection from MCP clients."""
         from starlette.responses import Response
+
+        # For GET requests, establish SSE connection
+        # For POST requests, also establish SSE connection (mcp-remote compatibility)
         async with sse.connect_sse(
             request.scope,
             request.receive,
@@ -255,7 +258,7 @@ def create_sse_server_app(mcp_server: Server) -> Starlette:
 
     return Starlette(
         routes=[
-            Route("/sse", endpoint=handle_sse, methods=["GET", "OPTIONS"]),
+            Route("/sse", endpoint=handle_sse, methods=["GET", "POST", "OPTIONS"]),
             Route("/health", endpoint=handle_health, methods=["GET"]),
             Mount("/messages/", app=sse.handle_post_message),
         ],
