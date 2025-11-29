@@ -12,7 +12,7 @@ import time
 def test_sse_post():
     """Test POST to /sse endpoint (what mcp-remote does)."""
 
-    url = "http://localhost:8001/sse"
+    url = "http://localhost:8000/mcp/sse"
 
     init_message = {
         "jsonrpc": "2.0",
@@ -95,7 +95,7 @@ def test_sse_post():
 
 def test_health():
     """Test health endpoint."""
-    url = "http://localhost:8001/health"
+    url = "http://localhost:8000/health"
 
     try:
         response = requests.get(url, timeout=2)
