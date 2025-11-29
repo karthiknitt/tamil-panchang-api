@@ -256,7 +256,6 @@ def create_sse_server_app(mcp_server: Server) -> Starlette:
     return Starlette(
         routes=[
             Route("/sse", endpoint=handle_sse, methods=["GET", "OPTIONS"]),
-            Route("/health", endpoint=handle_health, methods=["GET"]),
             Mount("/messages/", app=sse.handle_post_message),
         ],
         middleware=[
