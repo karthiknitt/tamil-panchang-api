@@ -10,6 +10,7 @@ from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
+from starlette.responses import Response
 
 # FastAPI base URL (internal communication)
 FASTAPI_BASE = "http://localhost:8000"
@@ -233,6 +234,7 @@ async def handle_sse(request):
             write_stream,
             server.create_initialization_options()
         )
+    return Response()
 
 
 # Create Starlette app for SSE transport
