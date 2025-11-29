@@ -1,160 +1,17 @@
 """
 Tamil Panchang MCP Server
 Wraps the existing FastAPI REST endpoints to provide MCP (Model Context Protocol) access for AI agents.
+Uses FastMCP for built-in SSE transport support.
 """
 
-import asyncio
 import httpx
-from mcp.server import Server
-from mcp.server.sse import SseServerTransport
-from mcp.types import Tool, TextContent
-from starlette.applications import Starlette
-from starlette.routing import Route, Mount
-from starlette.responses import Response
+from fastmcp import FastMCP
 
 # FastAPI base URL (internal communication)
 FASTAPI_BASE = "http://localhost:8000"
 
-# Create MCP server instance
-server = Server("tamil-panchang")
-
-
-@server.list_tools()
-async def list_tools() -> list[Tool]:
-    """
-    List available MCP tools for AI agents.
-    Only exposing 2 tools as per requirements - AI can extract subsets from full JSON.
-    """
-    return [
-        Tool(
-            name="get_panchang",
-            description=(
-                "Calculate complete Tamil Panchang (astronomical calendar) for a specific date and location. "
-                "Returns tithi, nakshatra, yoga, karana, sunrise/sunset times, inauspicious timings "
-                "(Rahu Kalam, Yamagandam, Gulikai Kalam), and solar month information. "
-                "All names are in Tamil script."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "date": {
-                        "type": "string",
-                        "description": "Date in YYYY-MM-DD format (e.g., '2024-01-15')"
-                    },
-                    "latitude": {
-                        "type": "number",
-                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
-                    },
-                    "longitude": {
-                        "type": "number",
-                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
-                    },
-                    "timezone": {
-                        "type": "number",
-                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
-                    }
-                },
-                "required": ["date", "latitude", "longitude"]
-            }
-        ),
-        Tool(
-            name="get_today_panchang",
-            description=(
-                "Get today's Tamil Panchang for a specified location. "
-                "Convenience tool that automatically uses the current date. "
-                "Returns the same complete panchang data as get_panchang."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "latitude": {
-                        "type": "number",
-                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
-                    },
-                    "longitude": {
-                        "type": "number",
-                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
-                    },
-                    "timezone": {
-                        "type": "number",
-                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
-                    }
-                },
-                "required": ["latitude", "longitude"]
-            }
-        )
-    ]
-
-
-@server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    """
-    Handle tool invocations by forwarding requests to FastAPI endpoints.
-    MCP server acts as a wrapper - no calculation logic here.
-    """
-
-    async with httpx.AsyncClient() as client:
-        try:
-            if name == "get_panchang":
-                # Forward to /api/panchang endpoint
-                response = await client.post(
-                    f"{FASTAPI_BASE}/api/panchang",
-                    json={
-                        "date": arguments.get("date"),
-                        "latitude": arguments.get("latitude"),
-                        "longitude": arguments.get("longitude"),
-                        "timezone": arguments.get("timezone", 5.5)
-                    },
-                    timeout=10.0
-                )
-                response.raise_for_status()
-                result = response.json()
-
-                return [TextContent(
-                    type="text",
-                    text=f"Tamil Panchang for {arguments.get('date')}:\n\n{format_panchang_response(result)}"
-                )]
-
-            elif name == "get_today_panchang":
-                # Forward to /api/today endpoint
-                response = await client.post(
-                    f"{FASTAPI_BASE}/api/today",
-                    json={
-                        "latitude": arguments.get("latitude"),
-                        "longitude": arguments.get("longitude"),
-                        "timezone": arguments.get("timezone", 5.5)
-                    },
-                    timeout=10.0
-                )
-                response.raise_for_status()
-                result = response.json()
-
-                return [TextContent(
-                    type="text",
-                    text=f"Today's Tamil Panchang:\n\n{format_panchang_response(result)}"
-                )]
-
-            else:
-                return [TextContent(
-                    type="text",
-                    text=f"Error: Unknown tool '{name}'"
-                )]
-
-        except httpx.HTTPStatusError as e:
-            return [TextContent(
-                type="text",
-                text=f"Error calling FastAPI: {e.response.status_code} - {e.response.text}"
-            )]
-        except httpx.RequestError as e:
-            return [TextContent(
-                type="text",
-                text=f"Error connecting to FastAPI: {str(e)}"
-            )]
-        except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"Unexpected error: {str(e)}"
-            )]
+# Create FastMCP server instance
+mcp = FastMCP("tamil-panchang")
 
 
 def format_panchang_response(data: dict) -> str:
@@ -218,45 +75,97 @@ def format_panchang_response(data: dict) -> str:
     return "\n".join(lines)
 
 
-# Create Starlette app with SSE transport
-sse = SseServerTransport("/messages/")
+@mcp.tool()
+async def get_panchang(date: str, latitude: float, longitude: float, timezone: float = 5.5) -> str:
+    """
+    Calculate complete Tamil Panchang (astronomical calendar) for a specific date and location.
 
+    Returns tithi, nakshatra, yoga, karana, sunrise/sunset times, inauspicious timings
+    (Rahu Kalam, Yamagandam, Gulikai Kalam), and solar month information.
+    All names are in Tamil script.
 
-async def handle_sse(request):
-    """Handle SSE connection from MCP clients."""
-    async with sse.connect_sse(
-        request.scope,
-        request.receive,
-        request._send,
-    ) as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options()
+    Args:
+        date: Date in YYYY-MM-DD format (e.g., '2024-01-15')
+        latitude: Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)
+        longitude: Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)
+        timezone: UTC offset in hours (e.g., 5.5 for IST). Default: 5.5
+
+    Returns:
+        Formatted panchang data as text
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{FASTAPI_BASE}/api/panchang",
+            json={
+                "date": date,
+                "latitude": latitude,
+                "longitude": longitude,
+                "timezone": timezone
+            },
+            timeout=10.0
         )
-    return Response()
+        response.raise_for_status()
+        result = response.json()
+
+    return f"Tamil Panchang for {date}:\n\n{format_panchang_response(result)}"
 
 
-# Create Starlette app for SSE transport
-app = Starlette(
-    routes=[
-        Route("/sse", endpoint=handle_sse),
-        Mount("/messages/", app=sse.handle_post_message),
-    ]
-)
+@mcp.tool()
+async def get_today_panchang(latitude: float, longitude: float, timezone: float = 5.5) -> str:
+    """
+    Get today's Tamil Panchang for a specified location.
+
+    Convenience tool that automatically uses the current date.
+    Returns the same complete panchang data as get_panchang.
+
+    Args:
+        latitude: Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)
+        longitude: Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)
+        timezone: UTC offset in hours (e.g., 5.5 for IST). Default: 5.5
+
+    Returns:
+        Formatted panchang data as text
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{FASTAPI_BASE}/api/today",
+            json={
+                "latitude": latitude,
+                "longitude": longitude,
+                "timezone": timezone
+            },
+            timeout=10.0
+        )
+        response.raise_for_status()
+        result = response.json()
+
+    return f"Today's Tamil Panchang:\n\n{format_panchang_response(result)}"
 
 
 if __name__ == "__main__":
-    import uvicorn
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Tamil Panchang MCP Server - Exposes panchang tools via Model Context Protocol"
+    )
+    parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8001,
+        help="Port to listen on (default: 8001)"
+    )
+
+    args = parser.parse_args()
 
     print("🚀 Starting Tamil Panchang MCP Server...")
-    print(f"📡 SSE endpoint: http://0.0.0.0:8001/sse")
+    print(f"📡 SSE endpoint: http://{args.host}:{args.port}/sse")
     print(f"🔗 Forwarding to FastAPI: {FASTAPI_BASE}")
     print("✨ Exposing 2 tools: get_panchang, get_today_panchang")
 
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8001,
-        log_level="info"
-    )
+    # Run with FastMCP's built-in SSE transport
+    mcp.run(transport="sse", host=args.host, port=args.port)
