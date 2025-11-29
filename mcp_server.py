@@ -240,9 +240,23 @@ def create_sse_server_app(mcp_server: Server) -> Starlette:
             )
         return Response()
 
+    async def handle_health(request):
+        """Simple health check endpoint for MCP server."""
+        from starlette.responses import JSONResponse
+        return JSONResponse({
+            "status": "healthy",
+            "service": "tamil-panchang-mcp",
+            "endpoints": {
+                "sse": "/sse",
+                "messages": "/messages/",
+                "health": "/health"
+            }
+        })
+
     return Starlette(
         routes=[
             Route("/sse", endpoint=handle_sse, methods=["GET", "OPTIONS"]),
+            Route("/health", endpoint=handle_health, methods=["GET"]),
             Mount("/messages/", app=sse.handle_post_message),
         ],
         middleware=[
