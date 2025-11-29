@@ -9,7 +9,7 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
 from starlette.applications import Starlette
-from starlette.routing import Route
+from starlette.routing import Route, Mount
 
 # FastAPI base URL (internal communication)
 FASTAPI_BASE = "http://localhost:8000"
@@ -217,13 +217,20 @@ def format_panchang_response(data: dict) -> str:
     return "\n".join(lines)
 
 
-# SSE endpoint handler
+# Create Starlette app with SSE transport
+sse = SseServerTransport("/messages/")
+
+
 async def handle_sse(request):
     """Handle SSE connection from MCP clients."""
-    async with SseServerTransport("/messages") as transport:
+    async with sse.connect_sse(
+        request.scope,
+        request.receive,
+        request._send,
+    ) as (read_stream, write_stream):
         await server.run(
-            transport.reader,
-            transport.writer,
+            read_stream,
+            write_stream,
             server.create_initialization_options()
         )
 
@@ -232,6 +239,7 @@ async def handle_sse(request):
 app = Starlette(
     routes=[
         Route("/sse", endpoint=handle_sse),
+        Mount("/messages/", app=sse.handle_post_message),
     ]
 )
 
