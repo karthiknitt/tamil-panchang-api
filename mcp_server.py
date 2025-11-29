@@ -10,6 +10,8 @@ from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 import uvicorn
 import argparse
 import json
@@ -240,8 +242,17 @@ def create_sse_server_app(mcp_server: Server) -> Starlette:
 
     return Starlette(
         routes=[
-            Route("/sse", endpoint=handle_sse),
+            Route("/sse", endpoint=handle_sse, methods=["GET", "OPTIONS"]),
             Mount("/messages/", app=sse.handle_post_message),
+        ],
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
         ],
     )
 
