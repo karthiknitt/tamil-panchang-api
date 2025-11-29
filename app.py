@@ -5,6 +5,11 @@ from datetime import datetime, date
 from typing import Optional
 import swisseph as swe
 import math
+from fastapi import Request
+from mcp.server import Server
+from mcp.server.sse import SseServerTransport
+from mcp.types import Tool, TextContent
+import json
 
 app = FastAPI(
     title="Tamil Panchang API",
@@ -1425,6 +1430,175 @@ def get_today_panchang(location: LocationRequest):
         timezone=location.timezone
     )
     return get_panchang(request)
+
+    return get_panchang(request)
+
+# --- MCP Server Integration ---
+
+mcp_server = Server("tamil-panchang")
+
+def format_panchang_response(data: dict) -> str:
+    """Format the panchang JSON response into readable text for AI agents."""
+    lines = []
+    if "date" in data:
+        lines.append(f"📅 Date: {data['date']}")
+    if "location" in data:
+        loc = data["location"]
+        lines.append(f"📍 Location: {loc.get('latitude')}°N, {loc.get('longitude')}°E (Timezone: UTC+{loc.get('timezone')})")
+    
+    lines.append("")
+    lines.append("🌙 Panchang Elements:")
+    if "weekday" in data:
+        lines.append(f"  Weekday: {data['weekday']}")
+    if "tithi" in data:
+        lines.append(f"  Tithi: {data['tithi']}")
+    if "nakshatra" in data:
+        lines.append(f"  Nakshatra: {data['nakshatra']}")
+    if "yoga" in data:
+        lines.append(f"  Yoga: {data['yoga']}")
+    if "karana" in data:
+        lines.append(f"  Karana: {data['karana']}")
+    if "tamil_month" in data:
+        lines.append(f"  Tamil Month: {data['tamil_month']}")
+
+    lines.append("")
+    lines.append("☀️ Sun Timings:")
+    if "sunrise" in data:
+        lines.append(f"  Sunrise: {data['sunrise']}")
+    if "sunset" in data:
+        lines.append(f"  Sunset: {data['sunset']}")
+
+    lines.append("")
+    lines.append("⚠️ Inauspicious Timings (Avoid for important activities):")
+    if "rahu_kalam" in data:
+        lines.append(f"  Rahu Kalam: {data['rahu_kalam']}")
+    if "yamagandam" in data:
+        lines.append(f"  Yamagandam: {data['yamagandam']}")
+    if "gulikai_kalam" in data:
+        lines.append(f"  Gulikai Kalam: {data['gulikai_kalam']}")
+
+    lines.append("")
+    lines.append("---")
+    lines.append("Raw JSON data (for detailed analysis):")
+    lines.append(json.dumps(data, indent=2, ensure_ascii=False))
+
+    return "\n".join(lines)
+
+@mcp_server.list_tools()
+async def list_tools() -> list[Tool]:
+    """List available panchang calculation tools."""
+    return [
+        Tool(
+            name="get_panchang",
+            description=(
+                "Calculate complete Tamil Panchang (astronomical calendar) for a specific date and location. "
+                "Returns tithi, nakshatra, yoga, karana, sunrise/sunset times, inauspicious timings "
+                "(Rahu Kalam, Yamagandam, Gulikai Kalam), and solar month information. "
+                "All names are in Tamil script."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "Date in YYYY-MM-DD format (e.g., '2024-01-15')"
+                    },
+                    "latitude": {
+                        "type": "number",
+                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
+                    },
+                    "timezone": {
+                        "type": "number",
+                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
+                    }
+                },
+                "required": ["date", "latitude", "longitude"]
+            }
+        ),
+        Tool(
+            name="get_today_panchang",
+            description=(
+                "Get today's Tamil Panchang for a specified location. "
+                "Convenience tool that automatically uses the current date. "
+                "Returns the same complete panchang data as get_panchang."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "latitude": {
+                        "type": "number",
+                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
+                    },
+                    "timezone": {
+                        "type": "number",
+                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
+                    }
+                },
+                "required": ["latitude", "longitude"]
+            }
+        )
+    ]
+
+@mcp_server.call_tool()
+async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    """Handle tool invocations."""
+    try:
+        if name == "get_panchang":
+            req = PanchangRequest(
+                date=arguments.get("date"),
+                latitude=arguments.get("latitude"),
+                longitude=arguments.get("longitude"),
+                timezone=arguments.get("timezone", 5.5)
+            )
+            result = get_panchang(req)
+            return [TextContent(
+                type="text",
+                text=f"Tamil Panchang for {arguments.get('date')}:\n\n{format_panchang_response(result)}"
+            )]
+
+        elif name == "get_today_panchang":
+            today = date.today().strftime("%Y-%m-%d")
+            req = PanchangRequest(
+                date=today,
+                latitude=arguments.get("latitude"),
+                longitude=arguments.get("longitude"),
+                timezone=arguments.get("timezone", 5.5)
+            )
+            result = get_panchang(req)
+            return [TextContent(
+                type="text",
+                text=f"Today's Tamil Panchang:\n\n{format_panchang_response(result)}"
+            )]
+
+        else:
+            return [TextContent(
+                type="text",
+                text=f"Error: Unknown tool '{name}'"
+            )]
+
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error processing request: {str(e)}"
+        )]
+
+# SSE Transport for MCP
+sse = SseServerTransport("/mcp/messages/")
+
+@app.api_route("/mcp/sse", methods=["GET", "POST"])
+async def handle_sse(request: Request):
+    async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
+        await mcp_server.run(read_stream, write_stream, mcp_server.create_initialization_options())
+
+app.mount("/mcp/messages/", sse.handle_post_message)
 
 if __name__ == "__main__":
     import uvicorn
