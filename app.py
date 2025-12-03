@@ -1067,10 +1067,102 @@ def get_gowri_panchangam(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezo
         "night": night_gowri
     }
 
-def get_nalla_neram(gowri_panchangam):
+def parse_time_to_minutes(time_str):
+    """
+    Convert time string (HH:MM:SS) to minutes from midnight.
+    Handles times with "(next day)" suffix.
+
+    Args:
+        time_str: Time string in format "HH:MM:SS" or "HH:MM:SS (next day)"
+
+    Returns:
+        Tuple of (minutes_from_midnight, is_next_day)
+    """
+    is_next_day = "(next day)" in time_str
+    time_clean = time_str.replace(" (next day)", "").strip()
+
+    try:
+        parts = time_clean.split(":")
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        total_minutes = hours * 60 + minutes
+
+        # If next day, add 24 hours worth of minutes
+        if is_next_day:
+            total_minutes += 24 * 60
+
+        return total_minutes, is_next_day
+    except (ValueError, IndexError):
+        return 0, False
+
+def times_overlap(start1, end1, start2, end2):
+    """
+    Check if two time periods overlap.
+    Times are in minutes from midnight.
+
+    Args:
+        start1, end1: First time period (minutes from midnight)
+        start2, end2: Second time period (minutes from midnight)
+
+    Returns:
+        True if periods overlap, False otherwise
+    """
+    # Check if ranges overlap
+    # Two ranges overlap if: start1 < end2 AND start2 < end1
+    return start1 < end2 and start2 < end1
+
+def filter_auspicious_times(auspicious_periods, inauspicious_timings):
+    """
+    Filter out auspicious times that overlap with any inauspicious period.
+
+    Args:
+        auspicious_periods: List of auspicious time periods with 'start' and 'end' keys
+        inauspicious_timings: Dict containing rahu_kalam, yamagandam, gulikai_kalam, dhurmuhurtham
+
+    Returns:
+        Filtered list of auspicious periods that don't overlap with inauspicious times
+    """
+    # Collect all inauspicious periods
+    inauspicious_periods = []
+
+    for key in ['rahu_kalam', 'yamagandam', 'gulikai_kalam', 'dhurmuhurtham']:
+        if key in inauspicious_timings:
+            period = inauspicious_timings[key]
+            start_minutes, _ = parse_time_to_minutes(period['start'])
+            end_minutes, _ = parse_time_to_minutes(period['end'])
+            inauspicious_periods.append((start_minutes, end_minutes))
+
+    # Filter auspicious periods
+    filtered = []
+    for period in auspicious_periods:
+        start_minutes, _ = parse_time_to_minutes(period['start'])
+        end_minutes, _ = parse_time_to_minutes(period['end'])
+
+        # Check if this period overlaps with any inauspicious period
+        has_overlap = False
+        for inaus_start, inaus_end in inauspicious_periods:
+            if times_overlap(start_minutes, end_minutes, inaus_start, inaus_end):
+                has_overlap = True
+                break
+
+        # Only include if no overlap found
+        if not has_overlap:
+            filtered.append(period)
+
+    return filtered
+
+def get_nalla_neram(gowri_panchangam, inauspicious_timings=None):
     """
     Extract Nalla Neram (auspicious times) from Gowri Panchangam
     Returns only the auspicious periods (Amridha, Uthi, Labam, Sugam, Dhanam)
+    that do NOT overlap with inauspicious times.
+
+    Args:
+        gowri_panchangam: Gowri Panchangam data with day and night periods
+        inauspicious_timings: Optional dict with rahu_kalam, yamagandam, gulikai_kalam, dhurmuhurtham
+
+    Returns:
+        Dict with filtered day and night auspicious periods
     """
     day_nalla_neram = [
         period for period in gowri_panchangam["day"]
@@ -1082,12 +1174,17 @@ def get_nalla_neram(gowri_panchangam):
         if period["type"] == "auspicious"
     ]
 
+    # Filter out times that overlap with inauspicious periods
+    if inauspicious_timings:
+        day_nalla_neram = filter_auspicious_times(day_nalla_neram, inauspicious_timings)
+        night_nalla_neram = filter_auspicious_times(night_nalla_neram, inauspicious_timings)
+
     return {
         "day": day_nalla_neram,
         "night": night_nalla_neram
     }
 
-def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone):
+def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone, inauspicious_timings=None):
     """
     Calculate Hora (planetary hours) for the day.
     Day is divided into 12 horas from sunrise to sunset.
@@ -1095,6 +1192,14 @@ def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone):
     Each day starts with the ruling planet in Chaldean order.
 
     Chaldean order: Sun, Venus, Mercury, Moon, Saturn, Jupiter, Mars (repeating)
+
+    Args:
+        sunrise_jd: Julian Day of sunrise
+        sunset_jd: Julian Day of sunset
+        next_sunrise_jd: Julian Day of next sunrise
+        weekday: Weekday (0=Sunday)
+        timezone: Timezone offset
+        inauspicious_timings: Optional dict to filter out overlapping times
     """
     # Calculate day duration and hora duration
     day_duration_hours = (sunset_jd - sunrise_jd) * 24
@@ -1141,6 +1246,11 @@ def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone):
             "start": start_time + (" (next day)" if start_is_next_day else ""),
             "end": end_time + (" (next day)" if end_is_next_day else "")
         })
+
+    # Filter out horas that overlap with inauspicious times
+    if inauspicious_timings:
+        day_horas = filter_auspicious_times(day_horas, inauspicious_timings)
+        night_horas = filter_auspicious_times(night_horas, inauspicious_timings)
 
     return {
         "day": day_horas,
@@ -1453,15 +1563,23 @@ def get_panchang(request: PanchangRequest):
             sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone
         )
 
+        # Calculate inauspicious timings first
+        inauspicious_timings = {
+            "rahu_kalam": rahu_kalam,
+            "yamagandam": yamagandam,
+            "gulikai_kalam": gulikai,
+            "dhurmuhurtham": dhurmuhurtham
+        }
+
         # Calculate Gowri Panchangam and Nalla Neram
         gowri_panchangam = get_gowri_panchangam(
             sunrise_jd, sunset_jd, next_sunrise_jd, weekday_sunday_start, request.timezone
         )
-        nalla_neram = get_nalla_neram(gowri_panchangam)
+        nalla_neram = get_nalla_neram(gowri_panchangam, inauspicious_timings)
 
-        # Calculate Hora (planetary hours)
+        # Calculate Hora (planetary hours) with filtering
         hora = get_hora(
-            sunrise_jd, sunset_jd, next_sunrise_jd, weekday_sunday_start, request.timezone
+            sunrise_jd, sunset_jd, next_sunrise_jd, weekday_sunday_start, request.timezone, inauspicious_timings
         )
 
         # Get Nokku Naal classification based on nakshatra
