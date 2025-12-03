@@ -39,8 +39,11 @@ wheels/
 !README.md
 !CONTRIBUTING.md
 !SECURITY.md
+!CLAUDE.md
 !CLAUDE_DESKTOP_SETUP.md
 !MCP_SSE_FIX_SUMMARY.md
+!REPOSITORY_SEPARATION_PLAN.md
+!scripts/README.md
 
 
 # Logs
@@ -53,3 +56,9 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 n8n-workflow-example.json
+# Private deployment files (never commit)
+docker-compose.yml
+deploy_instructions.txt
+.env
+.env.production
+.env.local

@@ -6,9 +6,9 @@
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Latest-green)](https://fastapi.tiangolo.com/)
-[![API Status](https://img.shields.io/badge/status-active-success.svg)](https://panchang.karthikwrites.com/health)
+[![API Status](https://img.shields.io/badge/status-active-success.svg)](http://localhost:8000/health)
 
-🌐 **Live API:** [panchang.karthikwrites.com](https://panchang.karthikwrites.com/docs)
+🌐 **Live API:** [panchang.karthikwrites.com](http://localhost:8000/docs)
 
 ## 🎯 Overview
 
@@ -83,7 +83,7 @@ This API calculates all these elements **plus extensive additional information**
 No setup needed! Just use the public endpoint:
 
 ```bash
-curl -X POST "https://panchang.karthikwrites.com/api/today" \
+curl -X POST "http://localhost:8000/api/today" \
   -H "Content-Type: application/json" \
   -d '{"latitude":13.0827,"longitude":80.2707,"timezone":5.5}'
 ```
@@ -353,7 +353,7 @@ The included `docker-compose.yml` has:
 
 ### JavaScript
 ```javascript
-const panchang = await fetch('https://panchang.karthikwrites.com/api/today', {
+const panchang = await fetch('http://localhost:8000/api/today', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ latitude: 13.0827, longitude: 80.2707, timezone: 5.5 })
@@ -364,7 +364,7 @@ const panchang = await fetch('https://panchang.karthikwrites.com/api/today', {
 ```python
 import requests
 panchang = requests.post(
-    'https://panchang.karthikwrites.com/api/today',
+    'http://localhost:8000/api/today',
     json={'latitude': 13.0827, 'longitude': 80.2707, 'timezone': 5.5}
 ).json()
 ```
@@ -541,7 +541,7 @@ MIT License - Free to use and modify
 
 ## 📞 Support
 
-- 📖 [API Documentation](https://panchang.karthikwrites.com/docs)
+- 📖 [API Documentation](http://localhost:8000/docs)
 - 🐛 [Report Issues](https://github.com/karthiknitt/tamil-panchang-api/issues)
 - 💬 [Discussions](https://github.com/karthiknitt/tamil-panchang-api/discussions)
 
@@ -557,4 +557,4 @@ If this project helps you, consider:
 
 **Made with ❤️ for the Tamil community**
 
-[Live API](https://panchang.karthikwrites.com) | [Documentation](https://panchang.karthikwrites.com/docs) | [Blog](https://karthikwrites.com)
+[Live API](http://localhost:8000) | [Documentation](http://localhost:8000/docs) | [Blog](https://karthikwrites.com)
