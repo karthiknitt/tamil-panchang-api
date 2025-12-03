@@ -44,7 +44,7 @@ wheels/
 docs/
 tests/
 scripts/
-
+*.backup
 
 # Logs
 *.log

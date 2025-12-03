@@ -1,18 +1,19 @@
 # Tamil Panchang API
 
-> Free, open-source Tamil Panchang API with comprehensive astronomical calculations
+> Free, open-source Tamil Panchang API with comprehensive astronomical calculations and AI agent integration
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Latest-green)](https://fastapi.tiangolo.com/)
+[![MCP](https://img.shields.io/badge/MCP-Enabled-purple)](https://modelcontextprotocol.io)
 [![API Status](https://img.shields.io/badge/status-active-success.svg)](http://localhost:8000/health)
 
-🌐 **Live API:** [panchang.karthikwrites.com](http://localhost:8000/docs)
+🌐 **Live API:** [panchang.karthikwrites.com](https://panchang.karthikwrites.com/docs)
 
 ## 🎯 Overview
 
-A self-hosted Tamil Panchang API that provides **highly accurate astronomical calculations** using the Drik Panchanga method with Swiss Ephemeris. Perfect for Tamil community apps, websites, mobile applications, and automation workflows.
+A self-hosted Tamil Panchang API that provides **highly accurate astronomical calculations** using the Drik Panchanga method with Swiss Ephemeris. Perfect for Tamil community apps, websites, mobile applications, automation workflows, and **AI agent integration via MCP (Model Context Protocol)**.
 
 ### What is Panchang?
 
@@ -32,11 +33,13 @@ This API calculates all these elements **plus extensive additional information**
 - 🇮🇳 **Tamil Format** - Authentic South Indian panchang with Tamil names
 - ⚡ **Fast** - 100-300ms average response time
 - 🐳 **Docker-based** - Easy self-hosting with one command
+- 🤖 **AI Agent Ready** - Built-in MCP server for Claude and other AI assistants
 - 📱 **CORS Enabled** - Use from any website, app, or automation
 - 🔓 **No Authentication** - Simple and accessible
 - 📍 **Location-aware** - Precise calculations for any latitude/longitude
 - 🌅 **Sunrise-based** - Tamil day boundaries (sunrise to sunrise)
 - 🌙 **Sidereal Zodiac** - Using Lahiri Ayanamsa for accurate rasi calculations
+- 🔄 **Dual Server Architecture** - REST API + MCP server in one container
 
 ### 📊 Complete Data Provided
 
@@ -83,32 +86,73 @@ This API calculates all these elements **plus extensive additional information**
 No setup needed! Just use the public endpoint:
 
 ```bash
-curl -X POST "http://localhost:8000/api/today" \
+curl -X POST "https://panchang.karthikwrites.com/api/today" \
   -H "Content-Type: application/json" \
   -d '{"latitude":13.0827,"longitude":80.2707,"timezone":5.5}'
 ```
 
+### Using with AI Agents (Claude, etc.)
+
+Connect the MCP server to Claude Desktop or any MCP-compatible AI assistant:
+
+**Add to `claude_desktop_config.json`:**
+
+```json
+{
+  "mcpServers": {
+    "tamil-panchang": {
+      "url": "https://panchang.karthikwrites.com/mcp/sse"
+    }
+  }
+}
+```
+
+Then ask: *"What's today's panchang in Chennai?"*
+
 ### Self-Hosting with Docker
 
 1. **Clone the repository:**
+
 ```bash
 git clone https://github.com/karthiknitt/tamil-panchang-api.git
 cd tamil-panchang-api
 ```
 
 2. **Deploy with Docker Compose:**
+
 ```bash
-docker-compose up -d --build
+docker-compose -f docker-compose.standalone.yml up -d --build
 ```
 
-3. **Test:**
+3. **Test the REST API:**
+
 ```bash
 curl http://localhost:8000/health
 ```
 
+4. **Test the MCP Server:**
+
+```bash
+curl http://localhost:8001/health
+```
+
 ## 📖 API Documentation
 
-### Endpoints Overview
+### Dual Server Architecture
+
+This application runs **two servers in parallel** within a single Docker container:
+
+1. **FastAPI REST Server (Port 8000)** - Traditional HTTP REST API
+   - Direct HTTP access for web apps, mobile apps, n8n workflows
+   - Auto-generated OpenAPI/Swagger documentation
+   - Fast response times (100-300ms)
+
+2. **MCP Server (Port 8001)** - AI Agent Integration
+   - Model Context Protocol (SSE transport)
+   - Enables natural language queries via Claude and other AI assistants
+   - Wraps REST API endpoints for AI-friendly access
+
+### REST API Endpoints (Port 8000)
 
 | Method | Endpoint | Description | Authentication |
 |--------|----------|-------------|----------------|
@@ -118,6 +162,30 @@ curl http://localhost:8000/health
 | POST | `/api/panchang` | Get panchang for specific date | None |
 | GET | `/docs` | Interactive Swagger UI | None |
 | GET | `/redoc` | Alternative ReDoc docs | None |
+
+### MCP Server Tools (Port 8001)
+
+Access via SSE endpoint: `/sse` (or `/mcp/sse` in production with Traefik)
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `get_panchang` | `date`, `latitude`, `longitude`, `timezone` | Get panchang for specific date and location |
+| `get_today_panchang` | `latitude`, `longitude`, `timezone` | Get today's panchang for a location |
+
+**MCP Client Example:**
+
+```python
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+async with sse_client("http://localhost:8001/sse") as (read, write):
+    async with ClientSession(read, write) as session:
+        result = await session.call_tool(
+            "get_today_panchang",
+            {"latitude": 13.0827, "longitude": 80.2707, "timezone": 5.5}
+        )
+        print(result)
+```
 
 ### Detailed Endpoint Documentation
 
@@ -292,89 +360,217 @@ The API returns a comprehensive JSON response with all panchang data:
 
 ## 🛠️ Deployment Options
 
-### Option 1: Using Dokploy
+### Option 1: Standalone (Local Development/Testing)
 
-1. Create new project in Dokploy
+**Best for:** Local development, testing, or simple deployments without reverse proxy
+
+```bash
+# Uses docker-compose.standalone.yml
+docker-compose -f docker-compose.standalone.yml up -d --build
+
+# Access endpoints:
+# - REST API: http://localhost:8000
+# - MCP Server: http://localhost:8001/sse
+# - Swagger Docs: http://localhost:8000/docs
+```
+
+**Configuration:**
+- Direct port mapping: `8000:8000` and `8001:8001`
+- No TLS/HTTPS (use reverse proxy if needed)
+- No rate limiting (add nginx/caddy if needed)
+
+### Option 2: Production with Traefik
+
+**Best for:** Production deployments with automatic HTTPS and rate limiting
+
+```bash
+# Requires external dokploy-network and Traefik running
+docker-compose up -d --build
+
+# Access endpoints:
+# - REST API: https://your-domain.com/api/*
+# - MCP Server: https://your-domain.com/mcp/*
+# - Swagger Docs: https://your-domain.com/docs
+```
+
+**Configuration:**
+- Update domain in [docker-compose.yml](docker-compose.yml):
+  ```yaml
+  - "traefik.http.routers.panchang.rule=Host(`your-domain.com`)"
+  ```
+- Automatic Let's Encrypt TLS certificates
+- Path-based routing:
+  - `/api/*`, `/docs`, `/redoc`, `/health` → FastAPI (port 8000)
+  - `/mcp/*` → MCP server (port 8001, prefix stripped)
+- Rate limiting: 100 req/min per IP (50 burst)
+- Connects to `dokploy-network` for Traefik integration
+
+### Option 3: Using Dokploy (Managed Platform)
+
+**Best for:** Easiest production deployment with GUI management
+
+1. Create new service in Dokploy
 2. Connect this GitHub repository
 3. Select `docker-compose.yml`
-4. Update domain in docker-compose file
+4. Update domain in compose file
 5. Deploy!
 
-### Option 2: Docker Compose (Traefik)
+Dokploy automatically handles:
+- Network creation (`dokploy-network`)
+- Traefik configuration
+- SSL certificates
+- Container orchestration
 
-```bash
-# Update domain in docker-compose.yml
-nano docker-compose.yml
+### Port Reference
 
-# Deploy with Traefik
-docker-compose up -d --build
+| Server | Port | Endpoint | Purpose |
+|--------|------|----------|---------|
+| FastAPI | 8000 | `/api/*`, `/docs`, `/health` | REST API |
+| MCP | 8001 | `/sse` (standalone) or `/mcp/sse` (Traefik) | AI Agent Integration |
+
+### Environment Variables
+
+Optional configuration via environment variables:
+
+```yaml
+environment:
+  - TZ=Asia/Kolkata  # Timezone for logging (default: Asia/Kolkata)
 ```
 
-### Option 3: Standalone (No Traefik)
-
-```bash
-docker-compose -f docker-compose.standalone.yml up -d --build
-```
+**Note:** Swiss Ephemeris data files are automatically downloaded during Docker build.
 
 ## 📜 Fair Use Policy
 
 This API is free for everyone:
 
 **✅ Allowed:**
+
 - Personal use
 - Educational projects
 - Community apps/websites
 - Non-commercial mobile apps
+- AI agent integration
 - Reasonable automation
 
 **⚠️ Please Avoid:**
+
 - Excessive requests (> 100/min per IP)
 - Commercial reselling
 - Malicious traffic
 
-**Rate Limits:**
+**Rate Limits (Production with Traefik):**
+
 - 100 requests/minute per IP
 - 50 burst requests allowed
-
-## 🔧 Configuration
-
-### Environment Variables
-
-- `TZ` - Timezone (default: Asia/Kolkata)
-
-### Traefik Labels
-
-The included `docker-compose.yml` has:
-- Automatic HTTPS (Let's Encrypt)
-- Rate limiting (100 req/min)
-- Health checks
+- Applied to both FastAPI and MCP endpoints
 
 ## 📱 Client Examples
 
-### JavaScript
+### REST API Usage
+
+#### JavaScript/TypeScript
+
 ```javascript
-const panchang = await fetch('http://localhost:8000/api/today', {
+const panchang = await fetch('https://panchang.karthikwrites.com/api/today', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ latitude: 13.0827, longitude: 80.2707, timezone: 5.5 })
 }).then(r => r.json());
+
+console.log(`Today's Nakshatra: ${panchang.nakshatra.name}`);
 ```
 
-### Python
+#### Python
+
 ```python
 import requests
+
 panchang = requests.post(
-    'http://localhost:8000/api/today',
+    'https://panchang.karthikwrites.com/api/today',
     json={'latitude': 13.0827, 'longitude': 80.2707, 'timezone': 5.5}
 ).json()
+
+print(f"Today's Tithi: {panchang['tithi']['name']}")
 ```
 
-### n8n Workflow
+#### cURL
 
-Import the included `n8n-workflow-example.json` for:
-- Daily panchang notifications
-- Google Sheets logging
-- Email/Telegram integration
+```bash
+curl -X POST "https://panchang.karthikwrites.com/api/panchang" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2025-12-25",
+    "latitude": 13.0827,
+    "longitude": 80.2707,
+    "timezone": 5.5
+  }'
+```
+
+### AI Agent Usage (MCP)
+
+#### Claude Desktop Configuration
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "tamil-panchang": {
+      "url": "https://panchang.karthikwrites.com/mcp/sse"
+    }
+  }
+}
+```
+
+**Example AI queries:**
+
+- *"What's today's panchang in Chennai?"*
+- *"Is 2pm a good time for a meeting in Bangalore today?"*
+- *"What's the nakshatra on December 25, 2025 in Trichy?"*
+
+#### Python MCP Client
+
+```python
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+async with sse_client("https://panchang.karthikwrites.com/mcp/sse") as (read, write):
+    async with ClientSession(read, write) as session:
+        # Get today's panchang
+        result = await session.call_tool(
+            "get_today_panchang",
+            {"latitude": 13.0827, "longitude": 80.2707, "timezone": 5.5}
+        )
+        print(result)
+```
+
+### n8n Workflow Integration
+
+Create automated workflows with n8n:
+
+**Example workflow:**
+
+1. **Schedule Trigger** - Daily at 6 AM
+2. **HTTP Request** - POST to `/api/today`
+3. **Process Data** - Extract important timings
+4. **Send Notification** - Telegram/Email/SMS
+
+**Sample n8n HTTP Request Node:**
+
+```json
+{
+  "method": "POST",
+  "url": "https://panchang.karthikwrites.com/api/today",
+  "body": {
+    "latitude": 13.0827,
+    "longitude": 80.2707,
+    "timezone": 5.5
+  },
+  "headers": {
+    "Content-Type": "application/json"
+  }
+}
+```
 
 ## 📐 Understanding the Calculations
 
@@ -505,56 +701,131 @@ Based on nakshatra, determines suitable activities:
 
 ## 🏗️ Technical Stack
 
+### Core Technologies
+
 - **Language:** Python 3.11
-- **Framework:** FastAPI (modern, async web framework)
+- **REST API Framework:** FastAPI (modern, async web framework)
+- **AI Integration:** MCP (Model Context Protocol) with SSE transport
+- **Process Manager:** Supervisord (manages both servers)
+- **Container:** Docker with optimized multi-stage build
 - **Astronomical Engine:** PySwisseph (Swiss Ephemeris)
   - Compiled from source for maximum accuracy
-  - Includes DE431 ephemeris data files
-- **Container:** Docker with multi-stage build
+  - Includes DE431 ephemeris data files (.se1 files)
+
+### Calculation Methods
+
 - **Method:** Drik Panchanga (observational/precise)
-- **Zodiac:** Sidereal (Lahiri Ayanamsa)
+- **Zodiac:** Sidereal (Nirayana) using Lahiri Ayanamsa
 - **Calendar:** Amavasyanta (South Indian style)
-- **API Docs:** Auto-generated Swagger UI & ReDoc
+- **Day Boundary:** Sunrise-based (Tamil tradition)
 
-## 📚 Documentation Files
+### API Features
 
-- `README.md` - Comprehensive API documentation
+- **REST API:** Auto-generated OpenAPI/Swagger UI & ReDoc
+- **MCP Server:** SSE-based tool server for AI agents
+- **CORS:** Enabled for cross-origin requests
+- **Health Checks:** Built-in endpoints for monitoring
+- **Rate Limiting:** Configurable via Traefik (production)
+
+### System Architecture
+
+```text
+┌─────────────────────────────────────────┐
+│   Docker Container (tamil-panchang)    │
+│                                         │
+│  ┌───────────────────────────────────┐ │
+│  │      Supervisord (PID 1)         │ │
+│  └───────────────────────────────────┘ │
+│           │                │            │
+│           ▼                ▼            │
+│  ┌─────────────┐  ┌────────────────┐  │
+│  │   FastAPI   │  │   MCP Server   │  │
+│  │  (Port 8000)│  │  (Port 8001)   │  │
+│  │             │  │                │  │
+│  │  REST API   │  │  AI Tools via  │  │
+│  │  Swagger UI │  │  SSE Transport │  │
+│  └─────────────┘  └────────────────┘  │
+│           │                │            │
+│           └────────┬───────┘            │
+│                    ▼                    │
+│         ┌────────────────────┐         │
+│         │  PySwisseph Engine │         │
+│         │  Swiss Ephemeris   │         │
+│         │  (DE431 Data)      │         │
+│         └────────────────────┘         │
+└─────────────────────────────────────────┘
+              │              │
+              ▼              ▼
+        HTTP Clients    AI Agents
+        (Web/Mobile)    (Claude, etc.)
+```
+
+## 📚 Project Files
+
+- **[README.md](README.md)** - Comprehensive API documentation (this file)
+- **[CLAUDE.md](.claude/CLAUDE.md)** - Developer guide for Claude Code
+- **[app.py](app.py)** - Main FastAPI application (354 lines)
+- **[mcp_server.py](mcp_server.py)** - MCP server for AI integration
+- **[supervisord.conf](supervisord.conf)** - Process manager configuration
+- **[Dockerfile](Dockerfile)** - Container build instructions
+- **[docker-compose.yml](docker-compose.yml)** - Production deployment with Traefik
+- **[docker-compose.standalone.yml](docker-compose.standalone.yml)** - Local/testing deployment
+- **[test_api.py](test_api.py)** - API testing script
 
 
 ## 🤝 Contributing
 
-Contributions welcome! Feel free to:
-- Report bugs
-- Suggest features
-- Submit pull requests
-- Improve documentation
+Contributions are welcome! Ways to contribute:
+
+- 🐛 Report bugs or issues
+- 💡 Suggest new features or improvements
+- 📝 Improve documentation
+- 🔧 Submit pull requests
+- 🌍 Add support for other languages/formats
+- 🧪 Add more test cases
+
+**Development Setup:**
+
+1. Fork and clone the repository
+2. Make your changes
+3. Test locally with Docker Compose
+4. Submit a pull request
 
 ## 📄 License
 
-MIT License - Free to use and modify
+MIT License - Free to use, modify, and distribute
+
+**Copyright (c) 2025 Karthik**
+
+See [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Swiss Ephemeris for astronomical calculations
-- Tamil community for inspiration
-- Drik Panchang for methodology reference
+- **Swiss Ephemeris** - Accurate astronomical calculations
+- **Tamil Community** - Inspiration and cultural knowledge
+- **Drik Panchang** - Methodology reference
+- **Anthropic** - MCP (Model Context Protocol) specification
+- **FastAPI Team** - Excellent web framework
 
-## 📞 Support
+## 📞 Support & Contact
 
-- 📖 [API Documentation](http://localhost:8000/docs)
+- 📖 [Live API Documentation](https://panchang.karthikwrites.com/docs)
 - 🐛 [Report Issues](https://github.com/karthiknitt/tamil-panchang-api/issues)
-- 💬 [Discussions](https://github.com/karthiknitt/tamil-panchang-api/discussions)
+- 💬 [GitHub Discussions](https://github.com/karthiknitt/tamil-panchang-api/discussions)
+- 📧 [Contact](https://karthikwrites.com)
 
 ## ⭐ Show Your Support
 
-If this project helps you, consider:
-- ⭐ Star this repository
+If this project helps you:
+
+- ⭐ Star this repository on GitHub
 - 🐛 Report bugs or suggest features
 - 📢 Share with the Tamil community
 - 🤝 Contribute improvements
+- ☕ [Buy me a coffee](https://karthikwrites.com)
 
 ---
 
 **Made with ❤️ for the Tamil community**
 
-[Live API](http://localhost:8000) | [Documentation](http://localhost:8000/docs) | [Blog](https://karthikwrites.com)
+[Live API](https://panchang.karthikwrites.com) | [Documentation](https://panchang.karthikwrites.com/docs) | [Blog](https://karthikwrites.com)
