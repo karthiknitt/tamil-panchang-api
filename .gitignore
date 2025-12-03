@@ -39,11 +39,11 @@ wheels/
 !README.md
 !CONTRIBUTING.md
 !SECURITY.md
-!CLAUDE.md
-!CLAUDE_DESKTOP_SETUP.md
-!MCP_SSE_FIX_SUMMARY.md
-!REPOSITORY_SEPARATION_PLAN.md
-!scripts/README.md
+
+# Documentation, tests, and scripts (not committed to git)
+docs/
+tests/
+scripts/
 
 
 # Logs
