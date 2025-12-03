@@ -1,0 +1,109 @@
+Tamil Panchang API - Production Deployment Instructions
+======================================================
+
+Date: 2025-11-29
+Issue Fixed: MCP server returning HTTP 405 (Method Not Allowed) error
+
+PROBLEM IDENTIFIED
+------------------
+The MCP server's /sse endpoint only accepted GET and OPTIONS requests, but the
+mcp-remote client (used by Claude Desktop) first tries a POST request to initiate
+the SSE connection. This caused a 405 error and connection timeout.
+
+FIX APPLIED
+-----------
+Updated mcp_server.py line 258 to accept POST requests on the /sse endpoint:
+
+Before:
+  Route("/sse", endpoint=handle_sse, methods=["GET", "OPTIONS"])
+
+After:
+  Route("/sse", endpoint=handle_sse, methods=["GET", "POST", "OPTIONS"])
+
+DEPLOYMENT STEPS
+----------------
+
+1. SSH into production server (panchang.karthikwrites.com)
+
+2. Navigate to the project directory:
+   cd /path/to/tamil-panchang-api
+
+3. Pull the latest changes (if using git):
+   git pull origin main
+
+4. Rebuild and restart the container:
+   docker-compose down
+   docker-compose up -d --build
+
+5. Verify the deployment:
+   # Check container is running
+   docker ps | grep panchang
+
+   # Check health endpoints
+   curl https://panchang.karthikwrites.com/api/health
+   curl https://panchang.karthikwrites.com/mcp/health
+
+   # Test SSE endpoint (should return SSE stream)
+   curl -X POST https://panchang.karthikwrites.com/mcp/sse \
+     -H "Content-Type: application/json" \
+     -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+
+   Expected output: SSE stream starting with:
+   event: endpoint
+   data: /messages/?session_id=...
+
+6. Test from Claude Desktop:
+   - Add to claude_desktop_config.json:
+     {
+       "mcpServers": {
+         "tamil-panchang": {
+           "url": "https://panchang.karthikwrites.com/mcp/sse"
+         }
+       }
+     }
+   - Restart Claude Desktop
+   - Ask: "What's today's panchang in Chennai?"
+
+VERIFICATION
+------------
+After deployment, verify:
+
+[ ] FastAPI is accessible at https://panchang.karthikwrites.com/api/*
+[ ] MCP health endpoint returns 200 at https://panchang.karthikwrites.com/mcp/health
+[ ] POST to /mcp/sse returns SSE stream (not 405 error)
+[ ] Claude Desktop can connect to MCP server
+[ ] MCP tools (get_panchang, get_today_panchang) work correctly
+
+ROLLBACK PLAN
+-------------
+If issues occur:
+
+1. Revert to previous container:
+   docker-compose down
+   docker-compose up -d [previous-image-tag]
+
+2. Check logs for errors:
+   docker-compose logs -f
+
+TESTING
+-------
+A test script is available: test_sse_endpoint.py
+
+Run locally:
+  python test_sse_endpoint.py
+
+Run against production:
+  python test_sse_endpoint.py https://panchang.karthikwrites.com/mcp/sse
+
+FILES CHANGED
+-------------
+- mcp_server.py (line 258): Added "POST" to allowed methods for /sse endpoint
+- test_sse_endpoint.py: New test script for validating SSE endpoint
+- test_mcp_connection.py: Test script for local MCP server validation
+
+NOTES
+-----
+- The fix is minimal and only affects the MCP server, not the FastAPI service
+- Both servers (FastAPI on 8000, MCP on 8001) run in the same container
+- Traefik routes /api/* to port 8000 and /mcp/* to port 8001
+- SSL/TLS is handled by Traefik with Let's Encrypt certificates
