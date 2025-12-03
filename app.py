@@ -84,6 +84,35 @@ WEEKDAYS_TAMIL = [
     "Gnayiru", "Thingal", "Sevvai", "Budhan", "Viyazhan", "Velli", "Sani"
 ]
 
+# Amirthathi Yoga names (27 yogas based on weekday + nakshatra)
+AMIRTHATHI_YOGAS = [
+    "Amirtha", "Siddha", "Marana", "Kana", "Uttama", "Arishta", "Sobhana",
+    "Dhana", "Vradhi", "Sowmya", "Atiganda", "Kalana", "Mudgara",
+    "Kala", "Bava", "Huthasana", "Varuna", "Vishkamba", "Vajra",
+    "Siddhi", "Vyatipata", "Parigha", "Siva", "Sadhya", "Brahma",
+    "Indra", "Vaidhriti"
+]
+
+# Amirthathi Yoga lookup table based on weekday and nakshatra
+# Formula: (weekday + nakshatra - 1) % 27
+# This gives the yoga index (0-26)
+
+# Rutu (Season) names based on Tamil solar months
+RUTU_NAMES = {
+    "Chithirai": "Vasantha Rutu (Spring)",
+    "Vaikasi": "Vasantha Rutu (Spring)",
+    "Aani": "Greeshma Rutu (Summer)",
+    "Aadi": "Greeshma Rutu (Summer)",
+    "Aavani": "Varsha Rutu (Monsoon)",
+    "Purattasi": "Varsha Rutu (Monsoon)",
+    "Aippasi": "Sharad Rutu (Autumn)",
+    "Karthigai": "Sharad Rutu (Autumn)",
+    "Margazhi": "Hemantha Rutu (Pre-Winter)",
+    "Thai": "Hemantha Rutu (Pre-Winter)",
+    "Maasi": "Shishira Rutu (Winter)",
+    "Panguni": "Shishira Rutu (Winter)"
+}
+
 # Gowri Panchangam names
 GOWRI_NAMES = [
     "Uthi", "Amridha", "Rogam", "Labam", "Dhanam", "Sugam", "Visham", "Soram"
@@ -237,27 +266,40 @@ def julian_day(year, month, day, hour=0, minute=0, second=0):
 
 def get_sun_moon_positions(jd):
     """
-    Calculate the tropical ecliptic longitude positions of the Sun and Moon.
+    Calculate the sidereal (Nirayana) ecliptic longitude positions of the Sun and Moon.
 
     Uses PySwisseph library to calculate precise astronomical positions at a
-    given Julian Day. Returns tropical (Sayana) longitude values which are
-    later converted to sidereal (Nirayana) for Tamil calendar calculations.
+    given Julian Day. Returns sidereal (Nirayana) longitude values using Lahiri
+    Ayanamsa, which is the standard for Tamil panchang calculations.
 
     Args:
         jd (float): Julian Day Number for the calculation time
 
     Returns:
-        tuple: (sun_longitude, moon_longitude)
-            - sun_longitude (float): Sun's tropical longitude in degrees (0-360)
-            - moon_longitude (float): Moon's tropical longitude in degrees (0-360)
+        tuple: (sun_longitude, moon_longitude, ayanamsa)
+            - sun_longitude (float): Sun's sidereal longitude in degrees (0-360)
+            - moon_longitude (float): Moon's sidereal longitude in degrees (0-360)
+            - ayanamsa (float): Lahiri Ayanamsa value at the given JD
 
     Example:
         >>> get_sun_moon_positions(2460643.0)
-        (245.67, 123.45)  # Example values
+        (221.45, 98.23, 24.22)  # Example sidereal values
     """
-    sun = swe.calc_ut(jd, swe.SUN)[0][0]
-    moon = swe.calc_ut(jd, swe.MOON)[0][0]
-    return sun, moon
+    # Set sidereal mode to Lahiri (default for Tamil/Indian astrology)
+    swe.set_sid_mode(swe.SIDM_LAHIRI)
+
+    # Get Lahiri Ayanamsa for this date
+    ayanamsa = swe.get_ayanamsa_ut(jd)
+
+    # Calculate tropical positions
+    sun_tropical = swe.calc_ut(jd, swe.SUN)[0][0]
+    moon_tropical = swe.calc_ut(jd, swe.MOON)[0][0]
+
+    # Convert to sidereal by subtracting ayanamsa
+    sun_sidereal = (sun_tropical - ayanamsa) % 360
+    moon_sidereal = (moon_tropical - ayanamsa) % 360
+
+    return sun_sidereal, moon_sidereal, ayanamsa
 
 def get_tithi(sun_long, moon_long):
     """
@@ -318,8 +360,8 @@ def get_tithi_transitions(start_jd, end_jd, timezone, reference_date):
     tithis = []
     current_jd = start_jd
 
-    # Get initial tithi
-    sun_long, moon_long = get_sun_moon_positions(current_jd)
+    # Get initial tithi (using sidereal longitudes)
+    sun_long, moon_long, _ = get_sun_moon_positions(current_jd)
     current_tithi = get_tithi(sun_long, moon_long)
     tithi_start_jd = start_jd
 
@@ -328,7 +370,7 @@ def get_tithi_transitions(start_jd, end_jd, timezone, reference_date):
 
     while current_jd < end_jd:
         current_jd += increment
-        sun_long, moon_long = get_sun_moon_positions(current_jd)
+        sun_long, moon_long, _ = get_sun_moon_positions(current_jd)
         new_tithi = get_tithi(sun_long, moon_long)
 
         # Check if tithi changed
@@ -421,8 +463,8 @@ def get_nakshatra_transitions(start_jd, end_jd, timezone, reference_date):
     nakshatras = []
     current_jd = start_jd
 
-    # Get initial nakshatra
-    _, moon_long = get_sun_moon_positions(current_jd)
+    # Get initial nakshatra (using sidereal longitude)
+    _, moon_long, _ = get_sun_moon_positions(current_jd)
     current_nakshatra = get_nakshatra(moon_long)
     nakshatra_start_jd = start_jd
 
@@ -431,7 +473,7 @@ def get_nakshatra_transitions(start_jd, end_jd, timezone, reference_date):
 
     while current_jd < end_jd:
         current_jd += increment
-        _, moon_long = get_sun_moon_positions(current_jd)
+        _, moon_long, _ = get_sun_moon_positions(current_jd)
         new_nakshatra = get_nakshatra(moon_long)
 
         # Check if nakshatra changed
@@ -527,8 +569,8 @@ def get_yoga_transitions(start_jd, end_jd, timezone, reference_date):
     yogas = []
     current_jd = start_jd
 
-    # Get initial yoga
-    sun_long, moon_long = get_sun_moon_positions(current_jd)
+    # Get initial yoga (using sidereal longitudes)
+    sun_long, moon_long, _ = get_sun_moon_positions(current_jd)
     current_yoga = get_yoga(sun_long, moon_long)
     yoga_start_jd = start_jd
 
@@ -537,7 +579,7 @@ def get_yoga_transitions(start_jd, end_jd, timezone, reference_date):
 
     while current_jd < end_jd:
         current_jd += increment
-        sun_long, moon_long = get_sun_moon_positions(current_jd)
+        sun_long, moon_long, _ = get_sun_moon_positions(current_jd)
         new_yoga = get_yoga(sun_long, moon_long)
 
         # Check if yoga changed
@@ -1145,6 +1187,88 @@ def get_nokku_naal(nakshatra_name):
             "suitable_for": "Classification not available for this nakshatra"
         }
 
+def get_ayana(sun_sidereal_longitude):
+    """
+    Determine Ayana (solar movement) based on sun's sidereal position.
+
+    Uttarayana: Sun moving northward (Makara to Mithuna)
+    Dakshinayana: Sun moving southward (Kataka to Dhanus)
+
+    Args:
+        sun_sidereal_longitude: Sun's sidereal longitude in degrees
+
+    Returns:
+        Dictionary with ayana name and description
+    """
+    # Uttarayana starts when sun enters Makara (Capricorn) = 270-360 and 0-90 degrees
+    # Dakshinayana starts when sun enters Kataka (Cancer) = 90-270 degrees
+
+    if (sun_sidereal_longitude >= 270) or (sun_sidereal_longitude < 90):
+        return {
+            "name": "Uttarayana",
+            "description": "Sun's northward journey (Winter Solstice to Summer Solstice)",
+            "significance": "Auspicious period for spiritual practices and positive endeavors"
+        }
+    else:
+        return {
+            "name": "Dakshinayana",
+            "description": "Sun's southward journey (Summer Solstice to Winter Solstice)",
+            "significance": "Period associated with introspection and ancestral worship"
+        }
+
+def get_location_name(latitude, longitude):
+    """
+    Get approximate location name from coordinates.
+    For now, returns formatted coordinates. Can be enhanced with reverse geocoding.
+
+    Args:
+        latitude: Latitude in degrees
+        longitude: Longitude in degrees
+
+    Returns:
+        Formatted location string
+    """
+    lat_dir = "N" if latitude >= 0 else "S"
+    lon_dir = "E" if longitude >= 0 else "W"
+    return f"{abs(latitude):.4f}°{lat_dir}, {abs(longitude):.4f}°{lon_dir}"
+
+def get_amirthathi_yoga(weekday, nakshatra_number):
+    """
+    Calculate Amirthathi Yoga based on weekday and nakshatra combination.
+    This is a system of 27 yogas that cycle based on the weekday and nakshatra.
+
+    Formula: (weekday + nakshatra - 1) % 27
+
+    Args:
+        weekday: Weekday (0=Sunday, 1=Monday, ..., 6=Saturday)
+        nakshatra_number: Nakshatra number (1-27)
+
+    Returns:
+        Dictionary with yoga name and characteristics
+    """
+    # Calculate Amirthathi Yoga index
+    yoga_index = (weekday + nakshatra_number - 1) % 27
+    yoga_name = AMIRTHATHI_YOGAS[yoga_index]
+
+    # Classify as auspicious or inauspicious
+    auspicious_yogas = ["Amirtha", "Siddha", "Uttama", "Sobhana", "Dhana", "Vradhi",
+                        "Sowmya", "Siddhi", "Siva", "Sadhya", "Brahma", "Indra"]
+    inauspicious_yogas = ["Marana", "Arishta", "Atiganda", "Kalana", "Mudgara", "Kala",
+                          "Vyatipata", "Parigha", "Vaidhriti"]
+
+    if yoga_name in auspicious_yogas:
+        yoga_type = "Auspicious"
+    elif yoga_name in inauspicious_yogas:
+        yoga_type = "Inauspicious"
+    else:
+        yoga_type = "Neutral"
+
+    return {
+        "number": yoga_index + 1,
+        "name": yoga_name,
+        "type": yoga_type
+    }
+
 def get_special_yoga(weekday, nakshatra_number):
     """
     Calculate special yoga (Amrita, Siddha, Marana) based on weekday and nakshatra combination.
@@ -1302,9 +1426,10 @@ def get_panchang(request: PanchangRequest):
         )
 
         # Use sunrise JD for calculations (Tamil day starts at sunrise)
-        sun_long, moon_long = get_sun_moon_positions(sunrise_jd)
+        # Get sidereal positions for accurate Tamil panchang
+        sun_long, moon_long, ayanamsa = get_sun_moon_positions(sunrise_jd)
 
-        # Calculate panchang elements
+        # Calculate panchang elements (now using sidereal longitudes)
         tithi = get_tithi(sun_long, moon_long)
         nakshatra = get_nakshatra(moon_long)
         yoga = get_yoga(sun_long, moon_long)
@@ -1342,16 +1467,28 @@ def get_panchang(request: PanchangRequest):
         # Get Nokku Naal classification based on nakshatra
         nokku_naal = get_nokku_naal(nakshatra["name"])
 
+        # Get Amirthathi Yoga based on weekday and nakshatra
+        amirthathi_yoga = get_amirthathi_yoga(weekday_sunday_start, nakshatra["number"])
+
         # Get special yoga (Amrita/Siddha/Marana) based on weekday and nakshatra
         special_yoga = get_special_yoga(weekday_sunday_start, nakshatra["number"])
 
-        # Get Tamil month and sidereal sun position
-        tamil_month, sidereal_sun = get_tamil_month(sun_long, sunrise_jd)
+        # Get Tamil month (sun_long is already sidereal from get_sun_moon_positions)
+        # Calculate month based on sidereal sun position
+        month_num = int(sun_long / 30)
+        tamil_month = TAMIL_MONTHS[month_num]
 
-        # Calculate sidereal moon position for accurate rasi
-        ayanamsa = swe.get_ayanamsa_ut(sunrise_jd)
-        sidereal_moon = (moon_long - ayanamsa) % 360
-        moon_rasi_index = int(sidereal_moon / 30)
+        # Get Rutu (season) based on Tamil month
+        rutu = RUTU_NAMES.get(tamil_month, "Unknown")
+
+        # Get Ayana (Uttarayana/Dakshinayana) based on sun position
+        ayana = get_ayana(sun_long)
+
+        # Get location name from coordinates
+        location_name = get_location_name(request.latitude, request.longitude)
+
+        # Calculate rasi from sidereal moon position (already sidereal)
+        moon_rasi_index = int(moon_long / 30)
 
         # Calculate Chandrashtamam (includes both rasi and nakshatra)
         chandrashtamam = get_chandrashtamam(
@@ -1370,11 +1507,14 @@ def get_panchang(request: PanchangRequest):
         return {
             "date": request.date,
             "location": {
+                "name": location_name,
                 "latitude": request.latitude,
                 "longitude": request.longitude,
                 "timezone": request.timezone
             },
             "tamil_month": tamil_month,
+            "rutu": rutu,
+            "ayana": ayana,
             "weekday": {
                 "english": dt.strftime("%A"),
                 "tamil": WEEKDAYS_TAMIL[weekday_sunday_start]
@@ -1385,20 +1525,19 @@ def get_panchang(request: PanchangRequest):
             "tithi_list": tithi_list,
             "nakshatra": nakshatra,
             "nakshatra_list": nakshatra_list,
-            "yoga": yoga,
-            "yoga_list": yoga_list,
+            "naama_yoga": yoga,
+            "naama_yoga_list": yoga_list,
+            "amirthathi_yoga": amirthathi_yoga,
             "karana": karana,
-            "sun_sign": {
-                "longitude": round(sun_long, 2),
-                "sidereal_longitude": round(sidereal_sun, 2),
+            "lagnam": {
+                "sidereal_longitude": round(sun_long, 2),
                 "rasi": ["Mesha", "Vrishabha", "Mithuna", "Kataka", "Simha", "Kanya",
-                        "Tula", "Vrischika", "Dhanus", "Makara", "Kumbha", "Meena"][int(sidereal_sun/30)]
+                        "Tula", "Vrischika", "Dhanus", "Makara", "Kumbha", "Meena"][int(sun_long/30)]
             },
             "moon_sign": {
-                "longitude": round(moon_long, 2),
-                "sidereal_longitude": round(sidereal_moon, 2),
+                "sidereal_longitude": round(moon_long, 2),
                 "rasi": ["Mesha", "Vrishabha", "Mithuna", "Kataka", "Simha", "Kanya",
-                        "Tula", "Vrischika", "Dhanus", "Makara", "Kumbha", "Meena"][int(sidereal_moon/30)]
+                        "Tula", "Vrischika", "Dhanus", "Makara", "Kumbha", "Meena"][int(moon_long/30)]
             },
             "inauspicious_timings": {
                 "rahu_kalam": rahu_kalam,
@@ -1409,7 +1548,7 @@ def get_panchang(request: PanchangRequest):
             "gowri_panchangam": gowri_panchangam,
             "nalla_neram": nalla_neram,
             "hora": hora,
-            "nokku_naal": nokku_naal,
+            "naal": nokku_naal,
             "special_yoga": special_yoga,
             "chandrashtamam": chandrashtamam
         }
