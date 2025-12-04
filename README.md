@@ -360,6 +360,34 @@ The API returns a comprehensive JSON response with all panchang data:
 
 ## 🛠️ Deployment Options
 
+### Pre-built Docker Images
+
+This repository is available as pre-built Docker images on Docker Hub and GitHub Container Registry:
+
+**Docker Hub (Recommended):**
+
+```bash
+docker pull karthiknitt/tamil-panchang-api:latest
+```
+
+**GitHub Container Registry:**
+
+```bash
+docker pull ghcr.io/karthiknitt/tamil-panchang-api:latest
+```
+
+**Quick Run:**
+
+```bash
+# Run with Docker Hub image
+docker run -d -p 8000:8000 -p 8001:8001 karthiknitt/tamil-panchang-api:latest
+
+# Test the API
+curl http://localhost:8000/health
+```
+
+The images are automatically built and published on every push to the main branch via GitHub Actions.
+
 ### Option 1: Standalone (Local Development/Testing)
 
 **Best for:** Local development, testing, or simple deployments without reverse proxy
@@ -438,6 +466,54 @@ environment:
 ```
 
 **Note:** Swiss Ephemeris data files are automatically downloaded during Docker build.
+
+### CI/CD Pipeline
+
+This repository includes automated Docker image building and publishing via GitHub Actions.
+
+#### Automated Deployment
+
+The CI/CD pipeline automatically:
+
+1. **Triggers** on pushes to the `main` branch
+2. **Builds** the Docker image using the optimized Dockerfile
+3. **Pushes** to both Docker Hub and GitHub Container Registry (GHCR)
+4. **Tests** the deployed image to ensure functionality
+
+#### Required Secrets
+
+To enable automated publishing, configure these repository secrets in GitHub:
+
+| Secret Name | Description | Where to Get It |
+|-------------|-------------|-----------------|
+| `DOCKERHUB_USERNAME` | Your Docker Hub username | Docker Hub account settings |
+| `DOCKERHUB_TOKEN` | Docker Hub access token | Docker Hub → Account Settings → Security → Access Tokens |
+
+**Setting up Docker Hub Token:**
+
+1. Go to [Docker Hub](https://hub.docker.com/)
+2. Login and go to Account Settings → Security
+3. Generate a new Access Token
+4. Copy the token and add it as `DOCKERHUB_TOKEN` in repository secrets
+
+**Note:** GHCR publishing uses the built-in `GITHUB_TOKEN` which is automatically provided by GitHub Actions. You do **not** need to create or configure this token - it's available by default in all workflows.
+
+#### Image Names
+
+Images are published with these names:
+
+- **Docker Hub:** `yourusername/tamil-panchang-api`
+- **GHCR:** `ghcr.io/yourusername/tamil-panchang-api`
+
+Replace `yourusername` with your actual GitHub/Docker Hub username.
+
+#### Tags
+
+The following tags are automatically applied:
+
+- `latest` - Latest build from main branch
+- `main` - Current main branch commit
+- `main-<sha>` - Specific commit SHA (first 7 characters)
 
 ## 📜 Fair Use Policy
 
