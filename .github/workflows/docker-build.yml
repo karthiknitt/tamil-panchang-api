@@ -1,4 +1,4 @@
-name: Docker Build Test
+name: Docker Build and Push
 
 on:
   push:
@@ -6,27 +6,68 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  REGISTRY_DOCKERHUB: docker.io
+  REGISTRY_GHCR: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/tamil-panchang-api
+
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
-    
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Build Docker image
-      run: docker build -t tamil-panchang-api:test .
-    
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY_GHCR }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}
+          ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
     - name: Test health endpoint
       run: |
-        docker run -d --name test-api -p 8000:8000 tamil-panchang-api:test
+        docker run -d --name test-api -p 8000:8000 ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:latest
         sleep 10
         curl -f http://localhost:8000/health || exit 1
         docker stop test-api
         docker rm test-api
-    
+
     - name: Test API endpoint
       run: |
-        docker run -d --name test-api -p 8000:8000 tamil-panchang-api:test
+        docker run -d --name test-api -p 8000:8000 ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:latest
         sleep 10
         curl -X POST http://localhost:8000/api/today \
           -H "Content-Type: application/json" \
