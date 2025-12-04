@@ -362,18 +362,12 @@ The API returns a comprehensive JSON response with all panchang data:
 
 ### Pre-built Docker Images
 
-This repository is available as pre-built Docker images on Docker Hub and GitHub Container Registry:
+This repository is available as a pre-built Docker image on Docker Hub:
 
-**Docker Hub (Recommended):**
+**Docker Hub:**
 
 ```bash
 docker pull karthiknitt/tamil-panchang-api:latest
-```
-
-**GitHub Container Registry:**
-
-```bash
-docker pull ghcr.io/karthiknitt/tamil-panchang-api:latest
 ```
 
 **Quick Run:**
@@ -386,7 +380,7 @@ docker run -d -p 8000:8000 -p 8001:8001 karthiknitt/tamil-panchang-api:latest
 curl http://localhost:8000/health
 ```
 
-The images are automatically built and published on every push to the main branch via GitHub Actions.
+The image is automatically built and published to Docker Hub on every push to the main branch via GitHub Actions.
 
 ### Option 1: Standalone (Local Development/Testing)
 
@@ -477,7 +471,7 @@ The CI/CD pipeline automatically:
 
 1. **Triggers** on pushes to the `main` branch
 2. **Builds** the Docker image using the optimized Dockerfile
-3. **Pushes** to both Docker Hub and GitHub Container Registry (GHCR)
+3. **Pushes** to Docker Hub
 4. **Tests** the deployed image to ensure functionality
 
 #### Required Secrets
@@ -496,16 +490,11 @@ To enable automated publishing, configure these repository secrets in GitHub:
 3. Generate a new Access Token
 4. Copy the token and add it as `DOCKERHUB_TOKEN` in repository secrets
 
-**Note:** GHCR publishing uses the built-in `GITHUB_TOKEN` which is automatically provided by GitHub Actions. You do **not** need to create or configure this token - it's available by default in all workflows.
+#### Image Name
 
-#### Image Names
+The image is published as:
 
-Images are published with these names:
-
-- **Docker Hub:** `yourusername/tamil-panchang-api`
-- **GHCR:** `ghcr.io/yourusername/tamil-panchang-api`
-
-Replace `yourusername` with your actual GitHub/Docker Hub username.
+- **Docker Hub:** `karthiknitt/tamil-panchang-api`
 
 #### Tags
 
