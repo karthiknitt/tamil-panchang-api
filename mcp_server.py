@@ -1,308 +1,361 @@
 """
 Tamil Panchang MCP Server
-Wraps the existing FastAPI REST endpoints to provide MCP (Model Context Protocol) access for AI agents.
-Uses low-level MCP SDK with manual Starlette setup for reliable SSE transport.
+
+Modern MCP server using FastMCP framework that provides AI agents with access to
+Tamil Panchang astronomical calculations. Wraps existing FastAPI endpoints.
+
+Key Features:
+- FastMCP framework with automatic schema generation
+- Pydantic v2 input validation
+- Proper error handling with actionable messages
+- Support for both JSON and Markdown response formats
+- Comprehensive tool annotations for AI understanding
 """
 
 import httpx
-from mcp.server import Server
-from mcp.server.sse import SseServerTransport
-from mcp.types import Tool, TextContent
-from starlette.applications import Starlette
-from starlette.routing import Route, Mount
-from starlette.middleware import Middleware
-from starlette.middleware.cors import CORSMiddleware
-import uvicorn
-import argparse
 import json
+from enum import Enum
+from typing import Optional
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+from mcp.server.fastmcp import FastMCP
 
-# FastAPI base URL (internal communication)
+# FastAPI base URL for internal communication
 FASTAPI_BASE = "http://localhost:8000"
 
-# Create MCP server instance
-server = Server("tamil-panchang")
+# Initialize FastMCP server
+mcp = FastMCP("tamil_panchang_mcp")
 
 
-def format_panchang_response(data: dict) -> str:
+class ResponseFormat(str, Enum):
+    """Output format options for tool responses."""
+    MARKDOWN = "markdown"
+    JSON = "json"
+
+
+class PanchangInput(BaseModel):
+    """Input model for specific date panchang calculation."""
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra='forbid'
+    )
+
+    date: str = Field(
+        ...,
+        description="Date in YYYY-MM-DD format (e.g., '2024-01-15', '2025-12-25')",
+        pattern=r'^\d{4}-\d{2}-\d{2}$',
+        examples=["2024-01-15", "2025-12-25"]
+    )
+    latitude: float = Field(
+        ...,
+        description="Latitude of location in decimal degrees (-90 to +90). Examples: Chennai=13.0827, Mumbai=19.0760, Delhi=28.7041",
+        ge=-90.0,
+        le=90.0
+    )
+    longitude: float = Field(
+        ...,
+        description="Longitude of location in decimal degrees (-180 to +180). Examples: Chennai=80.2707, Mumbai=72.8777, Delhi=77.1025",
+        ge=-180.0,
+        le=180.0
+    )
+    timezone: float = Field(
+        default=5.5,
+        description="UTC offset in hours (e.g., 5.5 for IST, 8.0 for SGT). Default: 5.5 (India Standard Time)",
+        ge=-12.0,
+        le=14.0
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for human-readable formatted text or 'json' for raw structured data"
+    )
+
+    @field_validator('date')
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        """Validate date format and range."""
+        import datetime
+        try:
+            date_obj = datetime.datetime.strptime(v, '%Y-%m-%d')
+            # Reasonable range check (Swiss Ephemeris supports 13000 BCE to 17000 CE)
+            if date_obj.year < 1900 or date_obj.year > 2100:
+                raise ValueError("Date must be between 1900 and 2100")
+            return v
+        except ValueError as e:
+            raise ValueError(f"Invalid date format or range: {e}")
+
+
+class TodayPanchangInput(BaseModel):
+    """Input model for today's panchang calculation."""
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra='forbid'
+    )
+
+    latitude: float = Field(
+        ...,
+        description="Latitude of location in decimal degrees (-90 to +90). Examples: Chennai=13.0827, Mumbai=19.0760, Delhi=28.7041",
+        ge=-90.0,
+        le=90.0
+    )
+    longitude: float = Field(
+        ...,
+        description="Longitude of location in decimal degrees (-180 to +180). Examples: Chennai=80.2707, Mumbai=72.8777, Delhi=77.1025",
+        ge=-180.0,
+        le=180.0
+    )
+    timezone: float = Field(
+        default=5.5,
+        description="UTC offset in hours (e.g., 5.5 for IST, 8.0 for SGT). Default: 5.5 (India Standard Time)",
+        ge=-12.0,
+        le=14.0
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for human-readable formatted text or 'json' for raw structured data"
+    )
+
+
+def format_panchang_markdown(data: dict) -> str:
     """
-    Format the panchang JSON response into readable text for AI agents.
-    This makes it easier for AI to parse and explain to users.
+    Format panchang data as human-readable Markdown.
+
+    Args:
+        data: Raw panchang JSON data from FastAPI
+
+    Returns:
+        Formatted markdown string with emojis and structure
     """
     lines = []
 
-    # Date and location
+    # Header with date and location
     if "date" in data:
-        lines.append(f"📅 Date: {data['date']}")
+        lines.append(f"# Tamil Panchang for {data['date']}")
+        lines.append("")
+
     if "location" in data:
         loc = data["location"]
-        lines.append(f"📍 Location: {loc.get('latitude')}°N, {loc.get('longitude')}°E (Timezone: UTC+{loc.get('timezone')})")
-
-    lines.append("")
+        lines.append(f"**Location:** {loc.get('latitude', 'N/A')}°N, {loc.get('longitude', 'N/A')}°E")
+        lines.append(f"**Timezone:** UTC+{loc.get('timezone', 5.5)}")
+        lines.append("")
 
     # Basic panchang elements
-    lines.append("🌙 Panchang Elements:")
+    lines.append("## 🌙 Panchang Elements")
+    lines.append("")
     if "weekday" in data:
-        lines.append(f"  Weekday: {data['weekday']}")
+        lines.append(f"- **Weekday:** {data['weekday']}")
     if "tithi" in data:
-        lines.append(f"  Tithi: {data['tithi']}")
+        lines.append(f"- **Tithi:** {data['tithi']}")
     if "nakshatra" in data:
-        lines.append(f"  Nakshatra: {data['nakshatra']}")
+        lines.append(f"- **Nakshatra:** {data['nakshatra']}")
     if "yoga" in data:
-        lines.append(f"  Yoga: {data['yoga']}")
+        lines.append(f"- **Yoga:** {data['yoga']}")
     if "karana" in data:
-        lines.append(f"  Karana: {data['karana']}")
+        lines.append(f"- **Karana:** {data['karana']}")
     if "tamil_month" in data:
-        lines.append(f"  Tamil Month: {data['tamil_month']}")
-
+        lines.append(f"- **Tamil Month:** {data['tamil_month']}")
     lines.append("")
 
-    # Sun times
-    lines.append("☀️ Sun Timings:")
+    # Sun timings
+    lines.append("## ☀️ Sun Timings")
+    lines.append("")
     if "sunrise" in data:
-        lines.append(f"  Sunrise: {data['sunrise']}")
+        lines.append(f"- **Sunrise:** {data['sunrise']}")
     if "sunset" in data:
-        lines.append(f"  Sunset: {data['sunset']}")
-
+        lines.append(f"- **Sunset:** {data['sunset']}")
     lines.append("")
 
     # Inauspicious timings
-    lines.append("⚠️ Inauspicious Timings (Avoid for important activities):")
-    if "rahu_kalam" in data:
-        lines.append(f"  Rahu Kalam: {data['rahu_kalam']}")
-    if "yamagandam" in data:
-        lines.append(f"  Yamagandam: {data['yamagandam']}")
-    if "gulikai_kalam" in data:
-        lines.append(f"  Gulikai Kalam: {data['gulikai_kalam']}")
-
-    # Include raw JSON for programmatic access
+    lines.append("## ⚠️ Inauspicious Timings")
     lines.append("")
-    lines.append("---")
-    lines.append("Raw JSON data (for detailed analysis):")
-    lines.append(json.dumps(data, indent=2, ensure_ascii=False))
+    lines.append("*Avoid these periods for important activities, new ventures, or auspicious events:*")
+    lines.append("")
+    if "rahu_kalam" in data:
+        lines.append(f"- **Rahu Kalam:** {data['rahu_kalam']}")
+    if "yamagandam" in data:
+        lines.append(f"- **Yamagandam:** {data['yamagandam']}")
+    if "gulikai_kalam" in data:
+        lines.append(f"- **Gulikai Kalam:** {data['gulikai_kalam']}")
+    if "dhurmuhurtham" in data:
+        lines.append(f"- **Dhurmuhurtham:** {data['dhurmuhurtham']}")
+    lines.append("")
+
+    # Additional elements if present
+    if "special_yoga" in data and data["special_yoga"]:
+        lines.append("## ✨ Special Yoga")
+        lines.append("")
+        lines.append(f"- {data['special_yoga']}")
+        lines.append("")
+
+    if "chandrashtamam" in data:
+        lines.append("## 🌒 Chandrashtamam")
+        lines.append("")
+        lines.append(f"- {data['chandrashtamam']}")
+        lines.append("")
 
     return "\n".join(lines)
 
 
-@server.list_tools()
-async def list_tools() -> list[Tool]:
-    """List available panchang calculation tools."""
-    return [
-        Tool(
-            name="get_panchang",
-            description=(
-                "Calculate complete Tamil Panchang (astronomical calendar) for a specific date and location. "
-                "Returns tithi, nakshatra, yoga, karana, sunrise/sunset times, inauspicious timings "
-                "(Rahu Kalam, Yamagandam, Gulikai Kalam), and solar month information. "
-                "All names are in Tamil script."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "date": {
-                        "type": "string",
-                        "description": "Date in YYYY-MM-DD format (e.g., '2024-01-15')"
-                    },
-                    "latitude": {
-                        "type": "number",
-                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
-                    },
-                    "longitude": {
-                        "type": "number",
-                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
-                    },
-                    "timezone": {
-                        "type": "number",
-                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
-                    }
-                },
-                "required": ["date", "latitude", "longitude"]
-            }
-        ),
-        Tool(
-            name="get_today_panchang",
-            description=(
-                "Get today's Tamil Panchang for a specified location. "
-                "Convenience tool that automatically uses the current date. "
-                "Returns the same complete panchang data as get_panchang."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "latitude": {
-                        "type": "number",
-                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
-                    },
-                    "longitude": {
-                        "type": "number",
-                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
-                    },
-                    "timezone": {
-                        "type": "number",
-                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
-                    }
-                },
-                "required": ["latitude", "longitude"]
-            }
-        )
-    ]
-
-
-@server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+def _handle_api_error(e: Exception) -> str:
     """
-    Handle tool invocations by forwarding requests to FastAPI endpoints.
-    MCP server acts as a wrapper - no calculation logic here.
-    """
+    Convert API errors into actionable error messages.
 
+    Args:
+        e: Exception from httpx or other sources
+
+    Returns:
+        User-friendly error message with suggested actions
+    """
+    if isinstance(e, httpx.HTTPStatusError):
+        status = e.response.status_code
+        if status == 404:
+            return "Error: Panchang API endpoint not found. Please ensure FastAPI server is running on port 8000."
+        elif status == 422:
+            return f"Error: Invalid input parameters. {e.response.text}"
+        elif status == 500:
+            return f"Error: Panchang calculation failed. This may be due to invalid astronomical parameters. Details: {e.response.text}"
+        else:
+            return f"Error: API request failed with status {status}. Details: {e.response.text}"
+    elif isinstance(e, httpx.ConnectError):
+        return "Error: Cannot connect to FastAPI server at http://localhost:8000. Please ensure the FastAPI server is running."
+    elif isinstance(e, httpx.TimeoutException):
+        return "Error: Request timed out. The panchang calculation took too long. Please try again."
+    else:
+        return f"Error: Unexpected error occurred: {type(e).__name__} - {str(e)}"
+
+
+@mcp.tool(
+    name="tamil_panchang_get_panchang",
+    annotations={
+        "title": "Get Tamil Panchang for Specific Date",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def get_panchang(params: PanchangInput) -> str:
+    """
+    Calculate complete Tamil Panchang for a specific date and location.
+
+    Returns comprehensive panchang data including:
+    - Tithi (lunar day, 1-15 in each lunar fortnight)
+    - Nakshatra (lunar mansion, 27 divisions of the zodiac)
+    - Yoga (sun-moon angle combination, 27 yogas)
+    - Karana (half of tithi, 11 karanas)
+    - Sunrise and sunset times (Tamil day starts at sunrise)
+    - Inauspicious timings: Rahu Kalam, Yamagandam, Gulikai Kalam, Dhurmuhurtham
+    - Tamil solar month (12 months: Chithirai to Panguni)
+    - Special yogas and Chandrashtamam information
+
+    All calculations use the Drik Panchanga method with Swiss Ephemeris for
+    high astronomical accuracy. Tamil day boundary is sunrise (not midnight).
+
+    Args:
+        params (PanchangInput): Validated input containing:
+            - date (str): Date in YYYY-MM-DD format
+            - latitude (float): Location latitude (-90 to +90)
+            - longitude (float): Location longitude (-180 to +180)
+            - timezone (float): UTC offset (default 5.5 for IST)
+            - response_format (str): 'markdown' or 'json'
+
+    Returns:
+        str: Formatted panchang data in requested format (markdown or JSON)
+
+    Examples:
+        Get panchang for Chennai on January 15, 2024:
+        - date: "2024-01-15"
+        - latitude: 13.0827
+        - longitude: 80.2707
+        - timezone: 5.5
+    """
     async with httpx.AsyncClient() as client:
         try:
-            if name == "get_panchang":
-                # Forward to /api/panchang endpoint
-                response = await client.post(
-                    f"{FASTAPI_BASE}/api/panchang",
-                    json={
-                        "date": arguments.get("date"),
-                        "latitude": arguments.get("latitude"),
-                        "longitude": arguments.get("longitude"),
-                        "timezone": arguments.get("timezone", 5.5)
-                    },
-                    timeout=10.0
-                )
-                response.raise_for_status()
-                result = response.json()
+            response = await client.post(
+                f"{FASTAPI_BASE}/api/panchang",
+                json={
+                    "date": params.date,
+                    "latitude": params.latitude,
+                    "longitude": params.longitude,
+                    "timezone": params.timezone
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
+            result = response.json()
 
-                return [TextContent(
-                    type="text",
-                    text=f"Tamil Panchang for {arguments.get('date')}:\n\n{format_panchang_response(result)}"
-                )]
-
-            elif name == "get_today_panchang":
-                # Forward to /api/today endpoint
-                response = await client.post(
-                    f"{FASTAPI_BASE}/api/today",
-                    json={
-                        "latitude": arguments.get("latitude"),
-                        "longitude": arguments.get("longitude"),
-                        "timezone": arguments.get("timezone", 5.5)
-                    },
-                    timeout=10.0
-                )
-                response.raise_for_status()
-                result = response.json()
-
-                return [TextContent(
-                    type="text",
-                    text=f"Today's Tamil Panchang:\n\n{format_panchang_response(result)}"
-                )]
-
+            if params.response_format == ResponseFormat.JSON:
+                return json.dumps(result, indent=2, ensure_ascii=False)
             else:
-                return [TextContent(
-                    type="text",
-                    text=f"Error: Unknown tool '{name}'"
-                )]
+                return format_panchang_markdown(result)
 
-        except httpx.HTTPStatusError as e:
-            return [TextContent(
-                type="text",
-                text=f"Error calling FastAPI: {e.response.status_code} - {e.response.text}"
-            )]
-        except httpx.RequestError as e:
-            return [TextContent(
-                type="text",
-                text=f"Error connecting to FastAPI: {str(e)}"
-            )]
         except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"Unexpected error: {str(e)}"
-            )]
+            return _handle_api_error(e)
 
 
-def create_sse_server_app(mcp_server: Server) -> Starlette:
+@mcp.tool(
+    name="tamil_panchang_get_today",
+    annotations={
+        "title": "Get Today's Tamil Panchang",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": False,  # Not idempotent - changes daily
+        "openWorldHint": False
+    }
+)
+async def get_today_panchang(params: TodayPanchangInput) -> str:
     """
-    Create a Starlette application that serves the MCP server with SSE.
-    Based on the working weather.py example from mcp-sse repository.
+    Get today's Tamil Panchang for a specified location.
+
+    Convenience tool that automatically uses the current date. Returns the same
+    comprehensive panchang data as get_panchang but without requiring a date parameter.
+
+    Useful for:
+    - Checking today's auspicious/inauspicious timings
+    - Planning daily activities based on panchang
+    - Finding current tithi, nakshatra, and yoga
+    - Determining sunrise/sunset for the current day
+
+    Args:
+        params (TodayPanchangInput): Validated input containing:
+            - latitude (float): Location latitude (-90 to +90)
+            - longitude (float): Location longitude (-180 to +180)
+            - timezone (float): UTC offset (default 5.5 for IST)
+            - response_format (str): 'markdown' or 'json'
+
+    Returns:
+        str: Formatted panchang data for today in requested format
+
+    Examples:
+        Get today's panchang for Mumbai:
+        - latitude: 19.0760
+        - longitude: 72.8777
+        - timezone: 5.5
     """
-    sse = SseServerTransport("/messages/")
-
-    async def handle_sse(request):
-        """Handle SSE connection from MCP clients."""
-        from starlette.responses import Response
-
-        # For GET requests, establish SSE connection
-        # For POST requests, also establish SSE connection (mcp-remote compatibility)
-        async with sse.connect_sse(
-            request.scope,
-            request.receive,
-            request._send,
-        ) as (read_stream, write_stream):
-            await mcp_server.run(
-                read_stream,
-                write_stream,
-                mcp_server.create_initialization_options(),
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{FASTAPI_BASE}/api/today",
+                json={
+                    "latitude": params.latitude,
+                    "longitude": params.longitude,
+                    "timezone": params.timezone
+                },
+                timeout=10.0
             )
-        return Response()
+            response.raise_for_status()
+            result = response.json()
 
-    async def handle_health(request):
-        """Simple health check endpoint for MCP server."""
-        from starlette.responses import JSONResponse
-        return JSONResponse({
-            "status": "healthy",
-            "service": "tamil-panchang-mcp",
-            "endpoints": {
-                "sse": "/sse",
-                "messages": "/messages/",
-                "health": "/health"
-            }
-        })
+            if params.response_format == ResponseFormat.JSON:
+                return json.dumps(result, indent=2, ensure_ascii=False)
+            else:
+                return format_panchang_markdown(result)
 
-    return Starlette(
-        routes=[
-            Route("/sse", endpoint=handle_sse, methods=["GET", "POST", "OPTIONS"]),
-            Route("/health", endpoint=handle_health, methods=["GET"]),
-            Mount("/messages/", app=sse.handle_post_message),
-        ],
-        middleware=[
-            Middleware(
-                CORSMiddleware,
-                allow_origins=["*"],
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
-            )
-        ],
-    )
+        except Exception as e:
+            return _handle_api_error(e)
 
 
+# Main entry point for running the server
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Tamil Panchang MCP Server - Exposes panchang tools via Model Context Protocol"
-    )
-    parser.add_argument(
-        "--host",
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)"
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8001,
-        help="Port to listen on (default: 8001)"
-    )
-
-    args = parser.parse_args()
-
-    print("🚀 Starting Tamil Panchang MCP Server...")
-    print(f"📡 SSE endpoint: http://{args.host}:{args.port}/sse")
-    print(f"🔗 Forwarding to FastAPI: {FASTAPI_BASE}")
-    print("✨ Exposing 2 tools: get_panchang, get_today_panchang")
-
-    # Create and run the Starlette app with SSE transport
-    starlette_app = create_sse_server_app(server)
-
-    uvicorn.run(
-        starlette_app,
-        host=args.host,
-        port=args.port,
-        log_level="info"
-    )
+    # Run with SSE transport (for compatibility, though streamable-http is preferred for new deployments)
+    mcp.run(transport="sse")
