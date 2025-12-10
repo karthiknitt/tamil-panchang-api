@@ -3,7 +3,7 @@ version: '3.8'
 services:
   tamil-panchang-api:
     build: .
-    container_name: tamil-panchang-api
+    container_name: tamil-panchang-api-standalone
     restart: unless-stopped
     ports:
       - "8000:8000"
