@@ -21,16 +21,17 @@ RUN mkdir -p /app/ephe && \
     wget -q https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/semo_18.se1 && \
     wget -q https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/sepl_18.se1
 
-# Copy application code
+# Copy application code and configuration
 COPY app.py .
-COPY mcp_server_stdio.py .
+COPY mcp_server.py .
+COPY supervisord.conf .
 
 # Expose ports (FastAPI on 8000, MCP on 8001)
 EXPOSE 8000 8001
 
-# Health check (FastAPI endpoint)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+# Health check (check both FastAPI and MCP server)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health'); urllib.request.urlopen('http://localhost:8001/health')" || exit 1
 
-# Run FastAPI with Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run both servers via supervisord
+CMD ["/usr/local/bin/supervisord", "-c", "/app/supervisord.conf"]
