@@ -95,19 +95,37 @@ curl -X POST "https://panchang.karthikwrites.com/api/today" \
 
 Connect the MCP server to Claude Desktop or any MCP-compatible AI assistant:
 
-**Add to `claude_desktop_config.json`:**
+**Production API (Recommended):**
+
+Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "tamil-panchang": {
-      "url": "https://panchang.karthikwrites.com/mcp/sse"
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://panchang.karthikwrites.com/mcp/sse"]
     }
   }
 }
 ```
 
-Then ask: *"What's today's panchang in Chennai?"*
+**Local Docker (For Testing):**
+
+If you're running the API locally with Docker, use:
+
+```json
+{
+  "mcpServers": {
+    "tamil-panchang": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:8001/sse"]
+    }
+  }
+}
+```
+
+Then restart Claude Desktop and ask: *"What's today's panchang in Chennai?"*
 
 ### Self-Hosting with Docker
 
@@ -575,13 +593,31 @@ curl -X POST "https://panchang.karthikwrites.com/api/panchang" \
 
 #### Claude Desktop Configuration
 
+**Production API (Recommended):**
+
 Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "tamil-panchang": {
-      "url": "https://panchang.karthikwrites.com/mcp/sse"
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://panchang.karthikwrites.com/mcp/sse"]
+    }
+  }
+}
+```
+
+**Local Docker (For Testing):**
+
+If running the API locally, use:
+
+```json
+{
+  "mcpServers": {
+    "tamil-panchang": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:8001/sse"]
     }
   }
 }
