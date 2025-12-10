@@ -224,16 +224,7 @@ def _handle_api_error(e: Exception) -> str:
         return f"Error: Unexpected error occurred: {type(e).__name__} - {str(e)}"
 
 
-@mcp.tool(
-    name="tamil_panchang_get_panchang",
-    annotations={
-        "title": "Get Tamil Panchang for Specific Date",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False
-    }
-)
+@mcp.tool(name="tamil_panchang_get_panchang")
 async def get_panchang(params: PanchangInput) -> str:
     """
     Calculate complete Tamil Panchang for a specific date and location.
@@ -293,16 +284,7 @@ async def get_panchang(params: PanchangInput) -> str:
             return _handle_api_error(e)
 
 
-@mcp.tool(
-    name="tamil_panchang_get_today",
-    annotations={
-        "title": "Get Today's Tamil Panchang",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": False,  # Not idempotent - changes daily
-        "openWorldHint": False
-    }
-)
+@mcp.tool(name="tamil_panchang_get_today")
 async def get_today_panchang(params: TodayPanchangInput) -> str:
     """
     Get today's Tamil Panchang for a specified location.
@@ -355,7 +337,9 @@ async def get_today_panchang(params: TodayPanchangInput) -> str:
             return _handle_api_error(e)
 
 
-# Main entry point for running the server
-if __name__ == "__main__":
-    # Run with SSE transport (for compatibility, though streamable-http is preferred for new deployments)
-    mcp.run(transport="sse")
+# Entry point - use as ASGI app with uvicorn
+# Run with: uvicorn mcp_server:app --host 0.0.0.0 --port 8001
+# This exposes the FastMCP SSE app for external serving
+
+# Get the ASGI app from FastMCP for SSE transport
+app = mcp.sse_app()
