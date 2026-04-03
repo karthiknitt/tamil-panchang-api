@@ -2,9 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from datetime import datetime, date
-from typing import Optional
 import swisseph as swe
-import math
 from fastapi import Request
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
@@ -14,7 +12,7 @@ import json
 app = FastAPI(
     title="Tamil Panchang API",
     description="Self-hosted Tamil Panchang API using Drik Panchanga calculations",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Enable CORS
@@ -27,7 +25,8 @@ app.add_middleware(
 )
 
 # Set the ephemeris path
-swe.set_ephe_path('/app/ephe')
+swe.set_ephe_path("/app/ephe")
+
 
 class PanchangRequest(BaseModel):
     date: str = Field(..., description="Date in YYYY-MM-DD format")
@@ -35,62 +34,157 @@ class PanchangRequest(BaseModel):
     longitude: float = Field(..., description="Longitude of location")
     timezone: float = Field(5.5, description="Timezone offset (default: IST 5.5)")
 
+
 class LocationRequest(BaseModel):
     latitude: float
     longitude: float
     timezone: float = 5.5
 
+
 # Tamil month names
 TAMIL_MONTHS = [
-    "Chithirai", "Vaikasi", "Aani", "Aadi", "Aavani", "Purattasi",
-    "Aippasi", "Karthigai", "Margazhi", "Thai", "Maasi", "Panguni"
+    "Chithirai",
+    "Vaikasi",
+    "Aani",
+    "Aadi",
+    "Aavani",
+    "Purattasi",
+    "Aippasi",
+    "Karthigai",
+    "Margazhi",
+    "Thai",
+    "Maasi",
+    "Panguni",
 ]
 
 # Nakshatra names (Tamil)
 NAKSHATRAS_TAMIL = [
-    "Aswini", "Bharani", "Karthigai", "Rohini", "Mirugasiridam",
-    "Thiruvathirai", "Punarpoosam", "Poosam", "Ayilyam", "Makam",
-    "Puram", "Uthiram", "Hastham", "Chithirai", "Swathi",
-    "Visakam", "Anusham", "Kettai", "Moolam", "Pooradam",
-    "Uthiradam", "Thiruvonam", "Avittam", "Sadayam", "Poorattathi",
-    "Uthirattathi", "Revathi"
+    "Aswini",
+    "Bharani",
+    "Karthigai",
+    "Rohini",
+    "Mirugasiridam",
+    "Thiruvathirai",
+    "Punarpoosam",
+    "Poosam",
+    "Ayilyam",
+    "Makam",
+    "Puram",
+    "Uthiram",
+    "Hastham",
+    "Chithirai",
+    "Swathi",
+    "Visakam",
+    "Anusham",
+    "Kettai",
+    "Moolam",
+    "Pooradam",
+    "Uthiradam",
+    "Thiruvonam",
+    "Avittam",
+    "Sadayam",
+    "Poorattathi",
+    "Uthirattathi",
+    "Revathi",
 ]
 
 # Tithi names (Tamil)
 TITHIS_TAMIL = [
-    "Prathama", "Dwithiya", "Thrithiya", "Chathurthi", "Panchami",
-    "Shashthi", "Sapthami", "Ashtami", "Navami", "Dasami",
-    "Ekadasi", "Dwadasi", "Trayodasi", "Chaturdasi", "Pournami/Amavasya"
+    "Prathama",
+    "Dwithiya",
+    "Thrithiya",
+    "Chathurthi",
+    "Panchami",
+    "Shashthi",
+    "Sapthami",
+    "Ashtami",
+    "Navami",
+    "Dasami",
+    "Ekadasi",
+    "Dwadasi",
+    "Trayodasi",
+    "Chaturdasi",
+    "Pournami/Amavasya",
 ]
 
 # Yoga names
 YOGAS = [
-    "Vishkambha", "Priti", "Ayushman", "Saubhagya", "Shobhana",
-    "Atiganda", "Sukarman", "Dhriti", "Shoola", "Ganda",
-    "Vriddhi", "Dhruva", "Vyaghata", "Harshana", "Vajra",
-    "Siddhi", "Vyatipata", "Variyan", "Parigha", "Shiva",
-    "Siddha", "Sadhya", "Shubha", "Shukla", "Brahma",
-    "Indra", "Vaidhriti"
+    "Vishkambha",
+    "Priti",
+    "Ayushman",
+    "Saubhagya",
+    "Shobhana",
+    "Atiganda",
+    "Sukarman",
+    "Dhriti",
+    "Shoola",
+    "Ganda",
+    "Vriddhi",
+    "Dhruva",
+    "Vyaghata",
+    "Harshana",
+    "Vajra",
+    "Siddhi",
+    "Vyatipata",
+    "Variyan",
+    "Parigha",
+    "Shiva",
+    "Siddha",
+    "Sadhya",
+    "Shubha",
+    "Shukla",
+    "Brahma",
+    "Indra",
+    "Vaidhriti",
 ]
 
 # Karana names
 KARANAS = [
-    "Bava", "Balava", "Kaulava", "Taitila", "Garaja",
-    "Vanija", "Vishti", "Shakuni", "Chatushpada", "Naga", "Kimstughna"
+    "Bava",
+    "Balava",
+    "Kaulava",
+    "Taitila",
+    "Garaja",
+    "Vanija",
+    "Vishti",
+    "Shakuni",
+    "Chatushpada",
+    "Naga",
+    "Kimstughna",
 ]
 
 # Weekday names (Tamil)
-WEEKDAYS_TAMIL = [
-    "Gnayiru", "Thingal", "Sevvai", "Budhan", "Viyazhan", "Velli", "Sani"
-]
+WEEKDAYS_TAMIL = ["Gnayiru", "Thingal", "Sevvai", "Budhan", "Viyazhan", "Velli", "Sani"]
 
 # Amirthathi Yoga names (27 yogas based on weekday + nakshatra)
 AMIRTHATHI_YOGAS = [
-    "Amirtha", "Siddha", "Marana", "Kana", "Uttama", "Arishta", "Sobhana",
-    "Dhana", "Vradhi", "Sowmya", "Atiganda", "Kalana", "Mudgara",
-    "Kala", "Bava", "Huthasana", "Varuna", "Vishkamba", "Vajra",
-    "Siddhi", "Vyatipata", "Parigha", "Siva", "Sadhya", "Brahma",
-    "Indra", "Vaidhriti"
+    "Amirtha",
+    "Siddha",
+    "Marana",
+    "Kana",
+    "Uttama",
+    "Arishta",
+    "Sobhana",
+    "Dhana",
+    "Vradhi",
+    "Sowmya",
+    "Atiganda",
+    "Kalana",
+    "Mudgara",
+    "Kala",
+    "Bava",
+    "Huthasana",
+    "Varuna",
+    "Vishkamba",
+    "Vajra",
+    "Siddhi",
+    "Vyatipata",
+    "Parigha",
+    "Siva",
+    "Sadhya",
+    "Brahma",
+    "Indra",
+    "Vaidhriti",
 ]
 
 # Amirthathi Yoga lookup table based on weekday and nakshatra
@@ -110,36 +204,169 @@ RUTU_NAMES = {
     "Margazhi": "Hemantha Rutu (Pre-Winter)",
     "Thai": "Hemantha Rutu (Pre-Winter)",
     "Maasi": "Shishira Rutu (Winter)",
-    "Panguni": "Shishira Rutu (Winter)"
+    "Panguni": "Shishira Rutu (Winter)",
 }
 
 # Gowri Panchangam names
 GOWRI_NAMES = [
-    "Uthi", "Amridha", "Rogam", "Labam", "Dhanam", "Sugam", "Visham", "Soram"
+    "Uthi",
+    "Amridha",
+    "Rogam",
+    "Labam",
+    "Dhanam",
+    "Sugam",
+    "Visham",
+    "Soram",
 ]
 
 # Gowri Panchangam sequence for each weekday (Day - Sunrise to Sunset)
 # Each day starts with a different sequence based on weekday
 # Sunday=0, Monday=1, ..., Saturday=6
 GOWRI_DAY_SEQUENCE = [
-    ["Uthi", "Amridha", "Rogam", "Labam", "Dhanam", "Sugam", "Visham", "Soram"],      # Sunday
-    ["Labam", "Dhanam", "Sugam", "Visham", "Soram", "Amridha", "Uthi", "Rogam"],      # Monday
-    ["Visham", "Soram", "Uthi", "Amridha", "Rogam", "Labam", "Dhanam", "Sugam"],      # Tuesday
-    ["Rogam", "Labam", "Dhanam", "Sugam", "Visham", "Soram", "Uthi", "Amridha"],      # Wednesday
-    ["Dhanam", "Sugam", "Soram", "Uthi", "Amridha", "Visham", "Rogam", "Labam"],      # Thursday
-    ["Sugam", "Soram", "Uthi", "Visham", "Amridha", "Rogam", "Labam", "Dhanam"],      # Friday
-    ["Soram", "Uthi", "Visham", "Amridha", "Rogam", "Labam", "Dhanam", "Sugam"]       # Saturday
+    [
+        "Uthi",
+        "Amridha",
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+        "Visham",
+        "Soram",
+    ],  # Sunday
+    [
+        "Labam",
+        "Dhanam",
+        "Sugam",
+        "Visham",
+        "Soram",
+        "Amridha",
+        "Uthi",
+        "Rogam",
+    ],  # Monday
+    [
+        "Visham",
+        "Soram",
+        "Uthi",
+        "Amridha",
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+    ],  # Tuesday
+    [
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+        "Visham",
+        "Soram",
+        "Uthi",
+        "Amridha",
+    ],  # Wednesday
+    [
+        "Dhanam",
+        "Sugam",
+        "Soram",
+        "Uthi",
+        "Amridha",
+        "Visham",
+        "Rogam",
+        "Labam",
+    ],  # Thursday
+    [
+        "Sugam",
+        "Soram",
+        "Uthi",
+        "Visham",
+        "Amridha",
+        "Rogam",
+        "Labam",
+        "Dhanam",
+    ],  # Friday
+    [
+        "Soram",
+        "Uthi",
+        "Visham",
+        "Amridha",
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+    ],  # Saturday
 ]
 
 # Gowri Panchangam sequence for night (Sunset to next Sunrise)
 GOWRI_NIGHT_SEQUENCE = [
-    ["Amridha", "Visham", "Rogam", "Labam", "Dhanam", "Sugam", "Soram", "Uthi"],      # Sunday
-    ["Uthi", "Amridha", "Rogam", "Labam", "Sugam", "Dhanam", "Visham", "Soram"],      # Monday
-    ["Rogam", "Labam", "Dhanam", "Sugam", "Visham", "Soram", "Uthi", "Amridha"],      # Tuesday
-    ["Dhanam", "Sugam", "Soram", "Uthi", "Amridha", "Visham", "Rogam", "Labam"],      # Wednesday
-    ["Visham", "Soram", "Uthi", "Amridha", "Rogam", "Labam", "Dhanam", "Sugam"],      # Thursday
-    ["Rogam", "Labam", "Dhanam", "Sugam", "Soram", "Uthi", "Visham", "Amridha"],      # Friday
-    ["Labam", "Dhanam", "Sugam", "Visham", "Soram", "Uthi", "Amridha", "Rogam"]       # Saturday
+    [
+        "Amridha",
+        "Visham",
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+        "Soram",
+        "Uthi",
+    ],  # Sunday
+    [
+        "Uthi",
+        "Amridha",
+        "Rogam",
+        "Labam",
+        "Sugam",
+        "Dhanam",
+        "Visham",
+        "Soram",
+    ],  # Monday
+    [
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+        "Visham",
+        "Soram",
+        "Uthi",
+        "Amridha",
+    ],  # Tuesday
+    [
+        "Dhanam",
+        "Sugam",
+        "Soram",
+        "Uthi",
+        "Amridha",
+        "Visham",
+        "Rogam",
+        "Labam",
+    ],  # Wednesday
+    [
+        "Visham",
+        "Soram",
+        "Uthi",
+        "Amridha",
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+    ],  # Thursday
+    [
+        "Rogam",
+        "Labam",
+        "Dhanam",
+        "Sugam",
+        "Soram",
+        "Uthi",
+        "Visham",
+        "Amridha",
+    ],  # Friday
+    [
+        "Labam",
+        "Dhanam",
+        "Sugam",
+        "Visham",
+        "Soram",
+        "Uthi",
+        "Amridha",
+        "Rogam",
+    ],  # Saturday
 ]
 
 # Auspicious Gowri periods (Nalla Neram)
@@ -159,20 +386,41 @@ HORA_DAY_RULERS = [0, 3, 6, 2, 5, 1, 4]  # Indices in PLANETS_HORA
 # Nakshatra classifications based on sight direction
 # Mel Nokku (Upward looking) - Good for construction, worship, planting upward-growing things
 MEL_NOKKU_NAKSHATRAS = [
-    "Rohini", "Thiruvathirai", "Poosam", "Uthiram", "Uthiradam", "Uthirattathi",
-    "Thiruvonam", "Avittam", "Sadayam"
+    "Rohini",
+    "Thiruvathirai",
+    "Poosam",
+    "Uthiram",
+    "Uthiradam",
+    "Uthirattathi",
+    "Thiruvonam",
+    "Avittam",
+    "Sadayam",
 ]
 
 # Keezh Nokku (Downward looking) - Good for digging, mining, laying foundations
 KEEZH_NOKKU_NAKSHATRAS = [
-    "Bharani", "Karthigai", "Ayilyam", "Makam", "Puram", "Moolam",
-    "Pooradam", "Poorattathi"
+    "Bharani",
+    "Karthigai",
+    "Ayilyam",
+    "Makam",
+    "Puram",
+    "Moolam",
+    "Pooradam",
+    "Poorattathi",
 ]
 
 # Sama Nokku (Forward/Side looking) - Good for travel, vehicles, horizontal activities
 SAMA_NOKKU_NAKSHATRAS = [
-    "Aswini", "Mirugasiridam", "Punarpoosam", "Hastham", "Chithirai",
-    "Swathi", "Anusham", "Visakam", "Kettai", "Revathi"
+    "Aswini",
+    "Mirugasiridam",
+    "Punarpoosam",
+    "Hastham",
+    "Chithirai",
+    "Swathi",
+    "Anusham",
+    "Visakam",
+    "Kettai",
+    "Revathi",
 ]
 
 # Special Yogas: Amrita, Siddha, Marana based on weekday + nakshatra combination
@@ -181,62 +429,210 @@ SAMA_NOKKU_NAKSHATRAS = [
 # Amrita = Auspicious (Nectar), Siddha = Auspicious (Success), Marana = Inauspicious (Death-like)
 SPECIAL_YOGAS = {
     0: {  # Sunday - Gnayiru
-        0: "Marana", 1: "Siddha", 2: "Amrita", 3: "Marana", 4: "Siddha",
-        5: "Marana", 6: "Siddha", 7: "Amrita", 8: "Marana", 9: "Siddha",
-        10: "Marana", 11: "Siddha", 12: "Amrita", 13: "Marana", 14: "Siddha",
-        15: "Marana", 16: "Siddha", 17: "Amrita", 18: "Marana", 19: "Siddha",
-        20: "Marana", 21: "Amrita", 22: "Marana", 23: "Siddha", 24: "Marana",
-        25: "Siddha", 26: "Amrita"
+        0: "Marana",
+        1: "Siddha",
+        2: "Amrita",
+        3: "Marana",
+        4: "Siddha",
+        5: "Marana",
+        6: "Siddha",
+        7: "Amrita",
+        8: "Marana",
+        9: "Siddha",
+        10: "Marana",
+        11: "Siddha",
+        12: "Amrita",
+        13: "Marana",
+        14: "Siddha",
+        15: "Marana",
+        16: "Siddha",
+        17: "Amrita",
+        18: "Marana",
+        19: "Siddha",
+        20: "Marana",
+        21: "Amrita",
+        22: "Marana",
+        23: "Siddha",
+        24: "Marana",
+        25: "Siddha",
+        26: "Amrita",
     },
     1: {  # Monday - Thingal
-        0: "Amrita", 1: "Marana", 2: "Siddha", 3: "Marana", 4: "Amrita",
-        5: "Siddha", 6: "Marana", 7: "Siddha", 8: "Amrita", 9: "Marana",
-        10: "Siddha", 11: "Marana", 12: "Siddha", 13: "Amrita", 14: "Marana",
-        15: "Siddha", 16: "Marana", 17: "Siddha", 18: "Amrita", 19: "Marana",
-        20: "Siddha", 21: "Marana", 22: "Amrita", 23: "Marana", 24: "Siddha",
-        25: "Marana", 26: "Siddha"
+        0: "Amrita",
+        1: "Marana",
+        2: "Siddha",
+        3: "Marana",
+        4: "Amrita",
+        5: "Siddha",
+        6: "Marana",
+        7: "Siddha",
+        8: "Amrita",
+        9: "Marana",
+        10: "Siddha",
+        11: "Marana",
+        12: "Siddha",
+        13: "Amrita",
+        14: "Marana",
+        15: "Siddha",
+        16: "Marana",
+        17: "Siddha",
+        18: "Amrita",
+        19: "Marana",
+        20: "Siddha",
+        21: "Marana",
+        22: "Amrita",
+        23: "Marana",
+        24: "Siddha",
+        25: "Marana",
+        26: "Siddha",
     },
     2: {  # Tuesday - Sevvai
-        0: "Siddha", 1: "Amrita", 2: "Marana", 3: "Siddha", 4: "Marana",
-        5: "Amrita", 6: "Siddha", 7: "Marana", 8: "Siddha", 9: "Amrita",
-        10: "Marana", 11: "Siddha", 12: "Marana", 13: "Siddha", 14: "Amrita",
-        15: "Marana", 16: "Siddha", 17: "Marana", 18: "Siddha", 19: "Amrita",
-        20: "Marana", 21: "Siddha", 22: "Siddha", 23: "Amrita", 24: "Marana",
-        25: "Siddha", 26: "Marana"
+        0: "Siddha",
+        1: "Amrita",
+        2: "Marana",
+        3: "Siddha",
+        4: "Marana",
+        5: "Amrita",
+        6: "Siddha",
+        7: "Marana",
+        8: "Siddha",
+        9: "Amrita",
+        10: "Marana",
+        11: "Siddha",
+        12: "Marana",
+        13: "Siddha",
+        14: "Amrita",
+        15: "Marana",
+        16: "Siddha",
+        17: "Marana",
+        18: "Siddha",
+        19: "Amrita",
+        20: "Marana",
+        21: "Siddha",
+        22: "Siddha",
+        23: "Amrita",
+        24: "Marana",
+        25: "Siddha",
+        26: "Marana",
     },
     3: {  # Wednesday - Budhan
-        0: "Marana", 1: "Siddha", 2: "Amrita", 3: "Marana", 4: "Siddha",
-        5: "Marana", 6: "Amrita", 7: "Siddha", 8: "Marana", 9: "Siddha",
-        10: "Amrita", 11: "Marana", 12: "Siddha", 13: "Marana", 14: "Siddha",
-        15: "Amrita", 16: "Marana", 17: "Siddha", 18: "Marana", 19: "Siddha",
-        20: "Amrita", 21: "Marana", 22: "Siddha", 23: "Marana", 24: "Amrita",
-        25: "Siddha", 26: "Marana"
+        0: "Marana",
+        1: "Siddha",
+        2: "Amrita",
+        3: "Marana",
+        4: "Siddha",
+        5: "Marana",
+        6: "Amrita",
+        7: "Siddha",
+        8: "Marana",
+        9: "Siddha",
+        10: "Amrita",
+        11: "Marana",
+        12: "Siddha",
+        13: "Marana",
+        14: "Siddha",
+        15: "Amrita",
+        16: "Marana",
+        17: "Siddha",
+        18: "Marana",
+        19: "Siddha",
+        20: "Amrita",
+        21: "Marana",
+        22: "Siddha",
+        23: "Marana",
+        24: "Amrita",
+        25: "Siddha",
+        26: "Marana",
     },
     4: {  # Thursday - Viyazhan
-        0: "Siddha", 1: "Marana", 2: "Siddha", 3: "Amrita", 4: "Marana",
-        5: "Siddha", 6: "Marana", 7: "Marana", 8: "Amrita", 9: "Siddha",
-        10: "Marana", 11: "Amrita", 12: "Marana", 13: "Siddha", 14: "Marana",
-        15: "Siddha", 16: "Amrita", 17: "Marana", 18: "Siddha", 19: "Marana",
-        20: "Siddha", 21: "Siddha", 22: "Marana", 23: "Siddha", 24: "Siddha",
-        25: "Amrita", 26: "Marana"
+        0: "Siddha",
+        1: "Marana",
+        2: "Siddha",
+        3: "Amrita",
+        4: "Marana",
+        5: "Siddha",
+        6: "Marana",
+        7: "Marana",
+        8: "Amrita",
+        9: "Siddha",
+        10: "Marana",
+        11: "Amrita",
+        12: "Marana",
+        13: "Siddha",
+        14: "Marana",
+        15: "Siddha",
+        16: "Amrita",
+        17: "Marana",
+        18: "Siddha",
+        19: "Marana",
+        20: "Siddha",
+        21: "Siddha",
+        22: "Marana",
+        23: "Siddha",
+        24: "Siddha",
+        25: "Amrita",
+        26: "Marana",
     },
     5: {  # Friday - Velli
-        0: "Marana", 1: "Siddha", 2: "Marana", 3: "Siddha", 4: "Amrita",
-        5: "Marana", 6: "Siddha", 7: "Amrita", 8: "Siddha", 9: "Marana",
-        10: "Siddha", 11: "Siddha", 12: "Amrita", 13: "Marana", 14: "Siddha",
-        15: "Marana", 16: "Siddha", 17: "Amrita", 18: "Marana", 19: "Siddha",
-        20: "Marana", 21: "Siddha", 22: "Amrita", 23: "Marana", 24: "Marana",
-        25: "Siddha", 26: "Amrita"
+        0: "Marana",
+        1: "Siddha",
+        2: "Marana",
+        3: "Siddha",
+        4: "Amrita",
+        5: "Marana",
+        6: "Siddha",
+        7: "Amrita",
+        8: "Siddha",
+        9: "Marana",
+        10: "Siddha",
+        11: "Siddha",
+        12: "Amrita",
+        13: "Marana",
+        14: "Siddha",
+        15: "Marana",
+        16: "Siddha",
+        17: "Amrita",
+        18: "Marana",
+        19: "Siddha",
+        20: "Marana",
+        21: "Siddha",
+        22: "Amrita",
+        23: "Marana",
+        24: "Marana",
+        25: "Siddha",
+        26: "Amrita",
     },
     6: {  # Saturday - Sani
-        0: "Siddha", 1: "Marana", 2: "Siddha", 3: "Amrita", 4: "Siddha",
-        5: "Amrita", 6: "Marana", 7: "Siddha", 8: "Marana", 9: "Marana",
-        10: "Siddha", 11: "Amrita", 12: "Marana", 13: "Siddha", 14: "Marana",
-        15: "Amrita", 16: "Marana", 17: "Siddha", 18: "Siddha", 19: "Marana",
-        20: "Amrita", 21: "Marana", 22: "Siddha", 23: "Siddha", 24: "Amrita",
-        25: "Marana", 26: "Siddha"
-    }
+        0: "Siddha",
+        1: "Marana",
+        2: "Siddha",
+        3: "Amrita",
+        4: "Siddha",
+        5: "Amrita",
+        6: "Marana",
+        7: "Siddha",
+        8: "Marana",
+        9: "Marana",
+        10: "Siddha",
+        11: "Amrita",
+        12: "Marana",
+        13: "Siddha",
+        14: "Marana",
+        15: "Amrita",
+        16: "Marana",
+        17: "Siddha",
+        18: "Siddha",
+        19: "Marana",
+        20: "Amrita",
+        21: "Marana",
+        22: "Siddha",
+        23: "Siddha",
+        24: "Amrita",
+        25: "Marana",
+        26: "Siddha",
+    },
 }
+
 
 def julian_day(year, month, day, hour=0, minute=0, second=0):
     """
@@ -261,8 +657,9 @@ def julian_day(year, month, day, hour=0, minute=0, second=0):
         >>> julian_day(2025, 11, 28, 12, 30, 0)
         2460643.0208333335
     """
-    decimal_time = hour + minute/60.0 + second/3600.0
+    decimal_time = hour + minute / 60.0 + second / 3600.0
     return swe.julday(year, month, day, decimal_time)
+
 
 def get_sun_moon_positions(jd):
     """
@@ -300,6 +697,7 @@ def get_sun_moon_positions(jd):
     moon_sidereal = (moon_tropical - ayanamsa) % 360
 
     return sun_sidereal, moon_sidereal, ayanamsa
+
 
 def get_tithi(sun_long, moon_long):
     """
@@ -343,8 +741,9 @@ def get_tithi(sun_long, moon_long):
         "number": tithi_num + 1,
         "name": tithi_name,
         "paksha": paksha,
-        "remaining": round((1 - tithi_remaining) * 100, 2)
+        "remaining": round((1 - tithi_remaining) * 100, 2),
     }
+
 
 def get_tithi_transitions(start_jd, end_jd, timezone, reference_date):
     """
@@ -377,20 +776,24 @@ def get_tithi_transitions(start_jd, end_jd, timezone, reference_date):
         if new_tithi["number"] != current_tithi["number"]:
             # Get end time with date
             end_time, end_date = jd_to_datetime(current_jd, timezone, include_date=True)
-            start_time, start_date = jd_to_datetime(tithi_start_jd, timezone, include_date=True)
+            start_time, start_date = jd_to_datetime(
+                tithi_start_jd, timezone, include_date=True
+            )
 
             # Check if different from reference date
             start_suffix = f" ({start_date})" if start_date != reference_date else ""
             end_suffix = f" ({end_date})" if end_date != reference_date else ""
 
             # Record the previous tithi
-            tithis.append({
-                "number": current_tithi["number"],
-                "name": current_tithi["name"],
-                "paksha": current_tithi["paksha"],
-                "start": start_time + start_suffix,
-                "end": end_time + end_suffix
-            })
+            tithis.append(
+                {
+                    "number": current_tithi["number"],
+                    "name": current_tithi["name"],
+                    "paksha": current_tithi["paksha"],
+                    "start": start_time + start_suffix,
+                    "end": end_time + end_suffix,
+                }
+            )
 
             # Start tracking new tithi
             current_tithi = new_tithi
@@ -403,15 +806,18 @@ def get_tithi_transitions(start_jd, end_jd, timezone, reference_date):
     start_suffix = f" ({start_date})" if start_date != reference_date else ""
     end_suffix = f" ({end_date})" if end_date != reference_date else ""
 
-    tithis.append({
-        "number": current_tithi["number"],
-        "name": current_tithi["name"],
-        "paksha": current_tithi["paksha"],
-        "start": start_time + start_suffix,
-        "end": end_time + end_suffix
-    })
+    tithis.append(
+        {
+            "number": current_tithi["number"],
+            "name": current_tithi["name"],
+            "paksha": current_tithi["paksha"],
+            "start": start_time + start_suffix,
+            "end": end_time + end_suffix,
+        }
+    )
 
     return tithis
+
 
 def get_nakshatra(moon_long):
     """
@@ -446,8 +852,9 @@ def get_nakshatra(moon_long):
     return {
         "number": nak_num + 1,
         "name": NAKSHATRAS_TAMIL[nak_num],
-        "remaining": round((1 - nak_remaining) * 100, 2)
+        "remaining": round((1 - nak_remaining) * 100, 2),
     }
+
 
 def get_nakshatra_transitions(start_jd, end_jd, timezone, reference_date):
     """
@@ -480,19 +887,23 @@ def get_nakshatra_transitions(start_jd, end_jd, timezone, reference_date):
         if new_nakshatra["number"] != current_nakshatra["number"]:
             # Get times with dates
             end_time, end_date = jd_to_datetime(current_jd, timezone, include_date=True)
-            start_time, start_date = jd_to_datetime(nakshatra_start_jd, timezone, include_date=True)
+            start_time, start_date = jd_to_datetime(
+                nakshatra_start_jd, timezone, include_date=True
+            )
 
             # Check if different from reference date
             start_suffix = f" ({start_date})" if start_date != reference_date else ""
             end_suffix = f" ({end_date})" if end_date != reference_date else ""
 
             # Record the previous nakshatra
-            nakshatras.append({
-                "number": current_nakshatra["number"],
-                "name": current_nakshatra["name"],
-                "start": start_time + start_suffix,
-                "end": end_time + end_suffix
-            })
+            nakshatras.append(
+                {
+                    "number": current_nakshatra["number"],
+                    "name": current_nakshatra["name"],
+                    "start": start_time + start_suffix,
+                    "end": end_time + end_suffix,
+                }
+            )
 
             # Start tracking new nakshatra
             current_nakshatra = new_nakshatra
@@ -500,19 +911,24 @@ def get_nakshatra_transitions(start_jd, end_jd, timezone, reference_date):
 
     # Add the final nakshatra that extends to end of period
     end_time, end_date = jd_to_datetime(end_jd, timezone, include_date=True)
-    start_time, start_date = jd_to_datetime(nakshatra_start_jd, timezone, include_date=True)
+    start_time, start_date = jd_to_datetime(
+        nakshatra_start_jd, timezone, include_date=True
+    )
 
     start_suffix = f" ({start_date})" if start_date != reference_date else ""
     end_suffix = f" ({end_date})" if end_date != reference_date else ""
 
-    nakshatras.append({
-        "number": current_nakshatra["number"],
-        "name": current_nakshatra["name"],
-        "start": start_time + start_suffix,
-        "end": end_time + end_suffix
-    })
+    nakshatras.append(
+        {
+            "number": current_nakshatra["number"],
+            "name": current_nakshatra["name"],
+            "start": start_time + start_suffix,
+            "end": end_time + end_suffix,
+        }
+    )
 
     return nakshatras
+
 
 def get_yoga(sun_long, moon_long):
     """
@@ -552,8 +968,9 @@ def get_yoga(sun_long, moon_long):
     return {
         "number": yoga_num + 1,
         "name": YOGAS[yoga_num],
-        "remaining": round((1 - yoga_remaining) * 100, 2)
+        "remaining": round((1 - yoga_remaining) * 100, 2),
     }
+
 
 def get_yoga_transitions(start_jd, end_jd, timezone, reference_date):
     """
@@ -586,19 +1003,23 @@ def get_yoga_transitions(start_jd, end_jd, timezone, reference_date):
         if new_yoga["number"] != current_yoga["number"]:
             # Get times with dates
             end_time, end_date = jd_to_datetime(current_jd, timezone, include_date=True)
-            start_time, start_date = jd_to_datetime(yoga_start_jd, timezone, include_date=True)
+            start_time, start_date = jd_to_datetime(
+                yoga_start_jd, timezone, include_date=True
+            )
 
             # Check if different from reference date
             start_suffix = f" ({start_date})" if start_date != reference_date else ""
             end_suffix = f" ({end_date})" if end_date != reference_date else ""
 
             # Record the previous yoga
-            yogas.append({
-                "number": current_yoga["number"],
-                "name": current_yoga["name"],
-                "start": start_time + start_suffix,
-                "end": end_time + end_suffix
-            })
+            yogas.append(
+                {
+                    "number": current_yoga["number"],
+                    "name": current_yoga["name"],
+                    "start": start_time + start_suffix,
+                    "end": end_time + end_suffix,
+                }
+            )
 
             # Start tracking new yoga
             current_yoga = new_yoga
@@ -611,14 +1032,17 @@ def get_yoga_transitions(start_jd, end_jd, timezone, reference_date):
     start_suffix = f" ({start_date})" if start_date != reference_date else ""
     end_suffix = f" ({end_date})" if end_date != reference_date else ""
 
-    yogas.append({
-        "number": current_yoga["number"],
-        "name": current_yoga["name"],
-        "start": start_time + start_suffix,
-        "end": end_time + end_suffix
-    })
+    yogas.append(
+        {
+            "number": current_yoga["number"],
+            "name": current_yoga["name"],
+            "start": start_time + start_suffix,
+            "end": end_time + end_suffix,
+        }
+    )
 
     return yogas
+
 
 def get_karana(sun_long, moon_long):
     """
@@ -663,10 +1087,8 @@ def get_karana(sun_long, moon_long):
     else:
         karana_idx = karana_num % 7  # Cycle through 7 movable karanas
 
-    return {
-        "number": karana_num + 1,
-        "name": KARANAS[min(karana_idx, 10)]
-    }
+    return {"number": karana_num + 1, "name": KARANAS[min(karana_idx, 10)]}
+
 
 def get_sunrise_sunset(jd, lat, lon):
     """
@@ -699,17 +1121,14 @@ def get_sunrise_sunset(jd, lat, lon):
 
     # Sunrise (rsmi=1 for rise) - search from previous day to find the sunrise
     # near the given Julian Day
-    sunrise_jd = swe.rise_trans(
-        jd - 1, swe.SUN, 1, geopos, 0, 0
-    )[1][0]
+    sunrise_jd = swe.rise_trans(jd - 1, swe.SUN, 1, geopos, 0, 0)[1][0]
 
     # Sunset (rsmi=2 for set) - search from sunrise to get the NEXT sunset
     # This ensures we get the sunset for the same day
-    sunset_jd = swe.rise_trans(
-        sunrise_jd, swe.SUN, 2, geopos, 0, 0
-    )[1][0]
+    sunset_jd = swe.rise_trans(sunrise_jd, swe.SUN, 2, geopos, 0, 0)[1][0]
 
     return sunrise_jd, sunset_jd
+
 
 def jd_to_datetime(jd, timezone, include_date=False):
     """
@@ -763,6 +1182,7 @@ def jd_to_datetime(jd, timezone, include_date=False):
 
     return time_str
 
+
 def get_rahu_kalam(sunrise_jd, sunset_jd, weekday, timezone):
     """
     Calculate Rahu Kalam (Rahu Kaal) - an inauspicious period ruled by Rahu.
@@ -815,8 +1235,9 @@ def get_rahu_kalam(sunrise_jd, sunset_jd, weekday, timezone):
 
     return {
         "start": jd_to_datetime(start_jd, timezone),
-        "end": end_time + (" (next day)" if is_next_day else "")
+        "end": end_time + (" (next day)" if is_next_day else ""),
     }
+
 
 def get_yamagandam(sunrise_jd, sunset_jd, weekday, timezone):
     """
@@ -870,8 +1291,9 @@ def get_yamagandam(sunrise_jd, sunset_jd, weekday, timezone):
 
     return {
         "start": jd_to_datetime(start_jd, timezone),
-        "end": end_time + (" (next day)" if is_next_day else "")
+        "end": end_time + (" (next day)" if is_next_day else ""),
     }
+
 
 def get_gulikai_kalam(sunrise_jd, sunset_jd, weekday, timezone):
     """
@@ -925,8 +1347,9 @@ def get_gulikai_kalam(sunrise_jd, sunset_jd, weekday, timezone):
 
     return {
         "start": jd_to_datetime(start_jd, timezone),
-        "end": end_time + (" (next day)" if is_next_day else "")
+        "end": end_time + (" (next day)" if is_next_day else ""),
     }
+
 
 def get_dhurmuhurtham(sunrise_jd, sunset_jd, weekday, timezone):
     """
@@ -968,8 +1391,9 @@ def get_dhurmuhurtham(sunrise_jd, sunset_jd, weekday, timezone):
         "start": jd_to_datetime(start_jd, timezone),
         "end": end_time + (" (next day)" if is_next_day else ""),
         "muhurta_number": position,
-        "duration_minutes": round(muhurta_duration * 60, 0)
+        "duration_minutes": round(muhurta_duration * 60, 0),
     }
+
 
 def get_sidereal_longitude(tropical_long):
     """
@@ -982,6 +1406,7 @@ def get_sidereal_longitude(tropical_long):
     ayanamsa = swe.get_ayanamsa_ut(swe.julday(2025, 11, 28, 0))  # Placeholder
     sidereal_long = (tropical_long - ayanamsa) % 360
     return sidereal_long
+
 
 def get_tamil_month(sun_long, jd):
     """
@@ -1013,6 +1438,7 @@ def get_tamil_month(sun_long, jd):
 
     return TAMIL_MONTHS[month_num], sidereal_sun
 
+
 def get_gowri_panchangam(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone):
     """
     Calculate Gowri Panchangam - divides day and night into 8 equal parts
@@ -1036,12 +1462,14 @@ def get_gowri_panchangam(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezo
         start_jd = sunrise_jd + (i * day_part_duration / 24)
         end_jd = sunrise_jd + ((i + 1) * day_part_duration / 24)
 
-        day_gowri.append({
-            "name": name,
-            "type": "auspicious" if name in AUSPICIOUS_GOWRI else "inauspicious",
-            "start": jd_to_datetime(start_jd, timezone),
-            "end": jd_to_datetime(end_jd, timezone)
-        })
+        day_gowri.append(
+            {
+                "name": name,
+                "type": "auspicious" if name in AUSPICIOUS_GOWRI else "inauspicious",
+                "start": jd_to_datetime(start_jd, timezone),
+                "end": jd_to_datetime(end_jd, timezone),
+            }
+        )
 
     # Calculate night Gowri timings
     night_gowri = []
@@ -1055,17 +1483,17 @@ def get_gowri_panchangam(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezo
         start_is_next_day = start_jd >= (sunrise_jd + 1.0)
         end_is_next_day = end_jd >= (sunrise_jd + 1.0)
 
-        night_gowri.append({
-            "name": name,
-            "type": "auspicious" if name in AUSPICIOUS_GOWRI else "inauspicious",
-            "start": start_time + (" (next day)" if start_is_next_day else ""),
-            "end": end_time + (" (next day)" if end_is_next_day else "")
-        })
+        night_gowri.append(
+            {
+                "name": name,
+                "type": "auspicious" if name in AUSPICIOUS_GOWRI else "inauspicious",
+                "start": start_time + (" (next day)" if start_is_next_day else ""),
+                "end": end_time + (" (next day)" if end_is_next_day else ""),
+            }
+        )
 
-    return {
-        "day": day_gowri,
-        "night": night_gowri
-    }
+    return {"day": day_gowri, "night": night_gowri}
+
 
 def parse_time_to_minutes(time_str):
     """
@@ -1095,6 +1523,7 @@ def parse_time_to_minutes(time_str):
     except (ValueError, IndexError):
         return 0, False
 
+
 def times_overlap(start1, end1, start2, end2):
     """
     Check if two time periods overlap.
@@ -1111,6 +1540,7 @@ def times_overlap(start1, end1, start2, end2):
     # Two ranges overlap if: start1 < end2 AND start2 < end1
     return start1 < end2 and start2 < end1
 
+
 def filter_auspicious_times(auspicious_periods, inauspicious_timings):
     """
     Filter out auspicious times that overlap with any inauspicious period.
@@ -1125,18 +1555,18 @@ def filter_auspicious_times(auspicious_periods, inauspicious_timings):
     # Collect all inauspicious periods
     inauspicious_periods = []
 
-    for key in ['rahu_kalam', 'yamagandam', 'gulikai_kalam', 'dhurmuhurtham']:
+    for key in ["rahu_kalam", "yamagandam", "gulikai_kalam", "dhurmuhurtham"]:
         if key in inauspicious_timings:
             period = inauspicious_timings[key]
-            start_minutes, _ = parse_time_to_minutes(period['start'])
-            end_minutes, _ = parse_time_to_minutes(period['end'])
+            start_minutes, _ = parse_time_to_minutes(period["start"])
+            end_minutes, _ = parse_time_to_minutes(period["end"])
             inauspicious_periods.append((start_minutes, end_minutes))
 
     # Filter auspicious periods
     filtered = []
     for period in auspicious_periods:
-        start_minutes, _ = parse_time_to_minutes(period['start'])
-        end_minutes, _ = parse_time_to_minutes(period['end'])
+        start_minutes, _ = parse_time_to_minutes(period["start"])
+        end_minutes, _ = parse_time_to_minutes(period["end"])
 
         # Check if this period overlaps with any inauspicious period
         has_overlap = False
@@ -1150,6 +1580,7 @@ def filter_auspicious_times(auspicious_periods, inauspicious_timings):
             filtered.append(period)
 
     return filtered
+
 
 def get_nalla_neram(gowri_panchangam, inauspicious_timings=None):
     """
@@ -1165,26 +1596,26 @@ def get_nalla_neram(gowri_panchangam, inauspicious_timings=None):
         Dict with filtered day and night auspicious periods
     """
     day_nalla_neram = [
-        period for period in gowri_panchangam["day"]
-        if period["type"] == "auspicious"
+        period for period in gowri_panchangam["day"] if period["type"] == "auspicious"
     ]
 
     night_nalla_neram = [
-        period for period in gowri_panchangam["night"]
-        if period["type"] == "auspicious"
+        period for period in gowri_panchangam["night"] if period["type"] == "auspicious"
     ]
 
     # Filter out times that overlap with inauspicious periods
     if inauspicious_timings:
         day_nalla_neram = filter_auspicious_times(day_nalla_neram, inauspicious_timings)
-        night_nalla_neram = filter_auspicious_times(night_nalla_neram, inauspicious_timings)
+        night_nalla_neram = filter_auspicious_times(
+            night_nalla_neram, inauspicious_timings
+        )
 
-    return {
-        "day": day_nalla_neram,
-        "night": night_nalla_neram
-    }
+    return {"day": day_nalla_neram, "night": night_nalla_neram}
 
-def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone, inauspicious_timings=None):
+
+def get_hora(
+    sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone, inauspicious_timings=None
+):
     """
     Calculate Hora (planetary hours) for the day.
     Day is divided into 12 horas from sunrise to sunset.
@@ -1219,12 +1650,14 @@ def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone, inauspic
         start_jd = sunrise_jd + (i * day_hora_duration / 24)
         end_jd = sunrise_jd + ((i + 1) * day_hora_duration / 24)
 
-        day_horas.append({
-            "hora_number": i + 1,
-            "planet": PLANETS_HORA[planet_idx],
-            "start": jd_to_datetime(start_jd, timezone),
-            "end": jd_to_datetime(end_jd, timezone)
-        })
+        day_horas.append(
+            {
+                "hora_number": i + 1,
+                "planet": PLANETS_HORA[planet_idx],
+                "start": jd_to_datetime(start_jd, timezone),
+                "end": jd_to_datetime(end_jd, timezone),
+            }
+        )
 
     # Calculate night horas (12 horas from sunset to next sunrise)
     # Continue the sequence from where day ended
@@ -1240,22 +1673,22 @@ def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone, inauspic
         start_is_next_day = start_jd >= (sunrise_jd + 1.0)
         end_is_next_day = end_jd >= (sunrise_jd + 1.0)
 
-        night_horas.append({
-            "hora_number": i + 13,  # Continue numbering from 13-24
-            "planet": PLANETS_HORA[planet_idx],
-            "start": start_time + (" (next day)" if start_is_next_day else ""),
-            "end": end_time + (" (next day)" if end_is_next_day else "")
-        })
+        night_horas.append(
+            {
+                "hora_number": i + 13,  # Continue numbering from 13-24
+                "planet": PLANETS_HORA[planet_idx],
+                "start": start_time + (" (next day)" if start_is_next_day else ""),
+                "end": end_time + (" (next day)" if end_is_next_day else ""),
+            }
+        )
 
     # Filter out horas that overlap with inauspicious times
     if inauspicious_timings:
         day_horas = filter_auspicious_times(day_horas, inauspicious_timings)
         night_horas = filter_auspicious_times(night_horas, inauspicious_timings)
 
-    return {
-        "day": day_horas,
-        "night": night_horas
-    }
+    return {"day": day_horas, "night": night_horas}
+
 
 def get_nokku_naal(nakshatra_name):
     """
@@ -1273,29 +1706,30 @@ def get_nokku_naal(nakshatra_name):
             "classification": "Mel Nokku Naal",
             "tamil": "மேல் நோக்கு நாள்",
             "direction": "Upward Looking",
-            "suitable_for": "Construction, building upper floors, worship, coronation, planting trees, horticulture, religious ceremonies"
+            "suitable_for": "Construction, building upper floors, worship, coronation, planting trees, horticulture, religious ceremonies",
         }
     elif nakshatra_name in KEEZH_NOKKU_NAKSHATRAS:
         return {
             "classification": "Keezh Nokku Naal",
             "tamil": "கீழ் நோக்கு நாள்",
             "direction": "Downward Looking",
-            "suitable_for": "Digging wells, laying foundations, mining, underground work, sowing seeds (especially root vegetables)"
+            "suitable_for": "Digging wells, laying foundations, mining, underground work, sowing seeds (especially root vegetables)",
         }
     elif nakshatra_name in SAMA_NOKKU_NAKSHATRAS:
         return {
             "classification": "Sama Nokku Naal",
             "tamil": "சம நோக்கு நாள்",
             "direction": "Forward/Side Looking",
-            "suitable_for": "Travel, starting journeys, buying vehicles, landscaping, gardening, horizontal activities"
+            "suitable_for": "Travel, starting journeys, buying vehicles, landscaping, gardening, horizontal activities",
         }
     else:
         return {
             "classification": "Unknown",
             "tamil": "தெரியாத",
             "direction": "Not Classified",
-            "suitable_for": "Classification not available for this nakshatra"
+            "suitable_for": "Classification not available for this nakshatra",
         }
+
 
 def get_ayana(sun_sidereal_longitude):
     """
@@ -1317,14 +1751,15 @@ def get_ayana(sun_sidereal_longitude):
         return {
             "name": "Uttarayana",
             "description": "Sun's northward journey (Winter Solstice to Summer Solstice)",
-            "significance": "Auspicious period for spiritual practices and positive endeavors"
+            "significance": "Auspicious period for spiritual practices and positive endeavors",
         }
     else:
         return {
             "name": "Dakshinayana",
             "description": "Sun's southward journey (Summer Solstice to Winter Solstice)",
-            "significance": "Period associated with introspection and ancestral worship"
+            "significance": "Period associated with introspection and ancestral worship",
         }
+
 
 def get_location_name(latitude, longitude):
     """
@@ -1341,6 +1776,7 @@ def get_location_name(latitude, longitude):
     lat_dir = "N" if latitude >= 0 else "S"
     lon_dir = "E" if longitude >= 0 else "W"
     return f"{abs(latitude):.4f}°{lat_dir}, {abs(longitude):.4f}°{lon_dir}"
+
 
 def get_amirthathi_yoga(weekday, nakshatra_number):
     """
@@ -1361,10 +1797,31 @@ def get_amirthathi_yoga(weekday, nakshatra_number):
     yoga_name = AMIRTHATHI_YOGAS[yoga_index]
 
     # Classify as auspicious or inauspicious
-    auspicious_yogas = ["Amirtha", "Siddha", "Uttama", "Sobhana", "Dhana", "Vradhi",
-                        "Sowmya", "Siddhi", "Siva", "Sadhya", "Brahma", "Indra"]
-    inauspicious_yogas = ["Marana", "Arishta", "Atiganda", "Kalana", "Mudgara", "Kala",
-                          "Vyatipata", "Parigha", "Vaidhriti"]
+    auspicious_yogas = [
+        "Amirtha",
+        "Siddha",
+        "Uttama",
+        "Sobhana",
+        "Dhana",
+        "Vradhi",
+        "Sowmya",
+        "Siddhi",
+        "Siva",
+        "Sadhya",
+        "Brahma",
+        "Indra",
+    ]
+    inauspicious_yogas = [
+        "Marana",
+        "Arishta",
+        "Atiganda",
+        "Kalana",
+        "Mudgara",
+        "Kala",
+        "Vyatipata",
+        "Parigha",
+        "Vaidhriti",
+    ]
 
     if yoga_name in auspicious_yogas:
         yoga_type = "Auspicious"
@@ -1373,11 +1830,8 @@ def get_amirthathi_yoga(weekday, nakshatra_number):
     else:
         yoga_type = "Neutral"
 
-    return {
-        "number": yoga_index + 1,
-        "name": yoga_name,
-        "type": yoga_type
-    }
+    return {"number": yoga_index + 1, "name": yoga_name, "type": yoga_type}
+
 
 def get_special_yoga(weekday, nakshatra_number):
     """
@@ -1398,38 +1852,37 @@ def get_special_yoga(weekday, nakshatra_number):
     yoga_type = SPECIAL_YOGAS[weekday].get(nak_index, "Unknown")
 
     # Tamil names for special yogas
-    tamil_names = {
-        "Amrita": "அமிர்தம்",
-        "Siddha": "சித்தம்",
-        "Marana": "மரணம்"
-    }
+    tamil_names = {"Amrita": "அமிர்தம்", "Siddha": "சித்தம்", "Marana": "மரணம்"}
 
     # Yoga characteristics
     characteristics = {
         "Amrita": {
             "type": "Highly Auspicious",
             "description": "Nectar-like yoga, excellent for all auspicious activities, marriages, housewarming, starting new ventures",
-            "color": "green"
+            "color": "green",
         },
         "Siddha": {
             "type": "Auspicious",
             "description": "Success-oriented yoga, good for important work, business deals, spiritual practices",
-            "color": "blue"
+            "color": "blue",
         },
         "Marana": {
             "type": "Inauspicious",
             "description": "Death-like yoga, avoid starting new ventures, marriages, important decisions",
-            "color": "red"
-        }
+            "color": "red",
+        },
     }
 
     return {
         "name": yoga_type,
         "tamil": tamil_names.get(yoga_type, "தெரியாத"),
         "type": characteristics.get(yoga_type, {}).get("type", "Unknown"),
-        "description": characteristics.get(yoga_type, {}).get("description", "No description available"),
-        "color": characteristics.get(yoga_type, {}).get("color", "gray")
+        "description": characteristics.get(yoga_type, {}).get(
+            "description", "No description available"
+        ),
+        "color": characteristics.get(yoga_type, {}).get("color", "gray"),
     }
+
 
 def get_chandrashtamam(moon_rasi_index, moon_nakshatra_index, moon_nakshatra_name):
     """
@@ -1449,13 +1902,33 @@ def get_chandrashtamam(moon_rasi_index, moon_nakshatra_index, moon_nakshatra_nam
         Dictionary with Chandrashtamam rasi and nakshatra information
     """
     rasi_names = [
-        "Mesha", "Vrishabha", "Mithuna", "Kataka", "Simha", "Kanya",
-        "Tula", "Vrischika", "Dhanus", "Makara", "Kumbha", "Meena"
+        "Mesha",
+        "Vrishabha",
+        "Mithuna",
+        "Kataka",
+        "Simha",
+        "Kanya",
+        "Tula",
+        "Vrischika",
+        "Dhanus",
+        "Makara",
+        "Kumbha",
+        "Meena",
     ]
 
     rasi_tamil_names = [
-        "மேஷம்", "ரிஷபம்", "மிதுனம்", "கடகம்", "சிம்மம்", "கன்னி",
-        "துலாம்", "விருச்சிகம்", "தனுசு", "மகரம்", "கும்பம்", "மீனம்"
+        "மேஷம்",
+        "ரிஷபம்",
+        "மிதுனம்",
+        "கடகம்",
+        "சிம்மம்",
+        "கன்னி",
+        "துலாம்",
+        "விருச்சிகம்",
+        "தனுசு",
+        "மகரம்",
+        "கும்பம்",
+        "மீனம்",
     ]
 
     # Calculate 8th house from current Moon rasi (count 8 from current = add 7)
@@ -1469,34 +1942,35 @@ def get_chandrashtamam(moon_rasi_index, moon_nakshatra_index, moon_nakshatra_nam
             "rasi": {
                 "name": rasi_names[moon_rasi_index],
                 "tamil": rasi_tamil_names[moon_rasi_index],
-                "number": moon_rasi_index + 1
+                "number": moon_rasi_index + 1,
             },
             "nakshatra": {
                 "name": moon_nakshatra_name,
                 "tamil": NAKSHATRAS_TAMIL[moon_nakshatra_index],
-                "number": moon_nakshatra_index + 1
-            }
+                "number": moon_nakshatra_index + 1,
+            },
         },
         "chandrashtamam": {
             "rasi": {
                 "name": rasi_names[chandrashtamam_rasi_index],
                 "tamil": rasi_tamil_names[chandrashtamam_rasi_index],
-                "number": chandrashtamam_rasi_index + 1
+                "number": chandrashtamam_rasi_index + 1,
             },
             "nakshatra": {
                 "name": NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index],
-                "number": chandrashtamam_nakshatra_index + 1
-            }
+                "number": chandrashtamam_nakshatra_index + 1,
+            },
         },
         "description": "People born with Moon in {} rasi or {} nakshatra are experiencing Chandrashtamam today. This is an inauspicious period lasting approximately 2.25 days.".format(
             rasi_names[chandrashtamam_rasi_index],
-            NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index]
+            NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index],
         ),
         "advice": "If your birth Moon (Janma Rasi) is {} or birth nakshatra is {}, avoid important activities, new ventures, travel, and major decisions during this period.".format(
             rasi_names[chandrashtamam_rasi_index],
-            NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index]
-        )
+            NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index],
+        ),
     }
+
 
 @app.get("/")
 def read_root():
@@ -1506,13 +1980,15 @@ def read_root():
         "endpoints": {
             "panchang": "/api/panchang",
             "today": "/api/today",
-            "health": "/health"
-        }
+            "health": "/health",
+        },
     }
+
 
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
 
 @app.post("/api/panchang")
 def get_panchang(request: PanchangRequest):
@@ -1568,18 +2044,27 @@ def get_panchang(request: PanchangRequest):
             "rahu_kalam": rahu_kalam,
             "yamagandam": yamagandam,
             "gulikai_kalam": gulikai,
-            "dhurmuhurtham": dhurmuhurtham
+            "dhurmuhurtham": dhurmuhurtham,
         }
 
         # Calculate Gowri Panchangam and Nalla Neram
         gowri_panchangam = get_gowri_panchangam(
-            sunrise_jd, sunset_jd, next_sunrise_jd, weekday_sunday_start, request.timezone
+            sunrise_jd,
+            sunset_jd,
+            next_sunrise_jd,
+            weekday_sunday_start,
+            request.timezone,
         )
         nalla_neram = get_nalla_neram(gowri_panchangam, inauspicious_timings)
 
         # Calculate Hora (planetary hours) with filtering
         hora = get_hora(
-            sunrise_jd, sunset_jd, next_sunrise_jd, weekday_sunday_start, request.timezone, inauspicious_timings
+            sunrise_jd,
+            sunset_jd,
+            next_sunrise_jd,
+            weekday_sunday_start,
+            request.timezone,
+            inauspicious_timings,
         )
 
         # Get Nokku Naal classification based on nakshatra
@@ -1612,15 +2097,21 @@ def get_panchang(request: PanchangRequest):
         chandrashtamam = get_chandrashtamam(
             moon_rasi_index,
             nakshatra["number"] - 1,  # Convert to 0-based index
-            nakshatra["name"]
+            nakshatra["name"],
         )
 
         # Calculate all transitions for the Tamil day (sunrise to next sunrise)
         # Tamil panchang day starts at sunrise, not midnight
         # Get all tithi, nakshatra, and yoga transitions from sunrise to next sunrise
-        tithi_list = get_tithi_transitions(sunrise_jd, next_sunrise_jd, request.timezone, request.date)
-        nakshatra_list = get_nakshatra_transitions(sunrise_jd, next_sunrise_jd, request.timezone, request.date)
-        yoga_list = get_yoga_transitions(sunrise_jd, next_sunrise_jd, request.timezone, request.date)
+        tithi_list = get_tithi_transitions(
+            sunrise_jd, next_sunrise_jd, request.timezone, request.date
+        )
+        nakshatra_list = get_nakshatra_transitions(
+            sunrise_jd, next_sunrise_jd, request.timezone, request.date
+        )
+        yoga_list = get_yoga_transitions(
+            sunrise_jd, next_sunrise_jd, request.timezone, request.date
+        )
 
         return {
             "date": request.date,
@@ -1628,14 +2119,14 @@ def get_panchang(request: PanchangRequest):
                 "name": location_name,
                 "latitude": request.latitude,
                 "longitude": request.longitude,
-                "timezone": request.timezone
+                "timezone": request.timezone,
             },
             "tamil_month": tamil_month,
             "rutu": rutu,
             "ayana": ayana,
             "weekday": {
                 "english": dt.strftime("%A"),
-                "tamil": WEEKDAYS_TAMIL[weekday_sunday_start]
+                "tamil": WEEKDAYS_TAMIL[weekday_sunday_start],
             },
             "sunrise": jd_to_datetime(sunrise_jd, request.timezone),
             "sunset": jd_to_datetime(sunset_jd, request.timezone),
@@ -1649,32 +2140,59 @@ def get_panchang(request: PanchangRequest):
             "karana": karana,
             "lagnam": {
                 "sidereal_longitude": round(sun_long, 2),
-                "rasi": ["Mesha", "Vrishabha", "Mithuna", "Kataka", "Simha", "Kanya",
-                        "Tula", "Vrischika", "Dhanus", "Makara", "Kumbha", "Meena"][int(sun_long/30)]
+                "rasi": [
+                    "Mesha",
+                    "Vrishabha",
+                    "Mithuna",
+                    "Kataka",
+                    "Simha",
+                    "Kanya",
+                    "Tula",
+                    "Vrischika",
+                    "Dhanus",
+                    "Makara",
+                    "Kumbha",
+                    "Meena",
+                ][int(sun_long / 30)],
             },
             "moon_sign": {
                 "sidereal_longitude": round(moon_long, 2),
-                "rasi": ["Mesha", "Vrishabha", "Mithuna", "Kataka", "Simha", "Kanya",
-                        "Tula", "Vrischika", "Dhanus", "Makara", "Kumbha", "Meena"][int(moon_long/30)]
+                "rasi": [
+                    "Mesha",
+                    "Vrishabha",
+                    "Mithuna",
+                    "Kataka",
+                    "Simha",
+                    "Kanya",
+                    "Tula",
+                    "Vrischika",
+                    "Dhanus",
+                    "Makara",
+                    "Kumbha",
+                    "Meena",
+                ][int(moon_long / 30)],
             },
             "inauspicious_timings": {
                 "rahu_kalam": rahu_kalam,
                 "yamagandam": yamagandam,
                 "gulikai_kalam": gulikai,
-                "dhurmuhurtham": dhurmuhurtham
+                "dhurmuhurtham": dhurmuhurtham,
             },
             "gowri_panchangam": gowri_panchangam,
             "nalla_neram": nalla_neram,
             "hora": hora,
             "naal": nokku_naal,
             "special_yoga": special_yoga,
-            "chandrashtamam": chandrashtamam
+            "chandrashtamam": chandrashtamam,
         }
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error calculating panchang: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error calculating panchang: {str(e)}"
+        )
+
 
 @app.post("/api/today")
 def get_today_panchang(location: LocationRequest):
@@ -1684,15 +2202,15 @@ def get_today_panchang(location: LocationRequest):
         date=today,
         latitude=location.latitude,
         longitude=location.longitude,
-        timezone=location.timezone
+        timezone=location.timezone,
     )
     return get_panchang(request)
 
-    return get_panchang(request)
 
 # --- MCP Server Integration ---
 
 mcp_server = Server("tamil-panchang")
+
 
 def format_panchang_response(data: dict) -> str:
     """Format the panchang JSON response into readable text for AI agents."""
@@ -1701,8 +2219,10 @@ def format_panchang_response(data: dict) -> str:
         lines.append(f"📅 Date: {data['date']}")
     if "location" in data:
         loc = data["location"]
-        lines.append(f"📍 Location: {loc.get('latitude')}°N, {loc.get('longitude')}°E (Timezone: UTC+{loc.get('timezone')})")
-    
+        lines.append(
+            f"📍 Location: {loc.get('latitude')}°N, {loc.get('longitude')}°E (Timezone: UTC+{loc.get('timezone')})"
+        )
+
     lines.append("")
     lines.append("🌙 Panchang Elements:")
     if "weekday" in data:
@@ -1741,6 +2261,7 @@ def format_panchang_response(data: dict) -> str:
 
     return "\n".join(lines)
 
+
 @mcp_server.list_tools()
 async def list_tools() -> list[Tool]:
     """List available panchang calculation tools."""
@@ -1758,23 +2279,23 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "date": {
                         "type": "string",
-                        "description": "Date in YYYY-MM-DD format (e.g., '2024-01-15')"
+                        "description": "Date in YYYY-MM-DD format (e.g., '2024-01-15')",
                     },
                     "latitude": {
                         "type": "number",
-                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
+                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)",
                     },
                     "longitude": {
                         "type": "number",
-                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
+                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)",
                     },
                     "timezone": {
                         "type": "number",
-                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
-                    }
+                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5",
+                    },
                 },
-                "required": ["date", "latitude", "longitude"]
-            }
+                "required": ["date", "latitude", "longitude"],
+            },
         ),
         Tool(
             name="get_today_panchang",
@@ -1788,21 +2309,22 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "latitude": {
                         "type": "number",
-                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)"
+                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)",
                     },
                     "longitude": {
                         "type": "number",
-                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)"
+                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)",
                     },
                     "timezone": {
                         "type": "number",
-                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5"
-                    }
+                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5",
+                    },
                 },
-                "required": ["latitude", "longitude"]
-            }
-        )
+                "required": ["latitude", "longitude"],
+            },
+        ),
     ]
+
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -1813,13 +2335,15 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 date=arguments.get("date"),
                 latitude=arguments.get("latitude"),
                 longitude=arguments.get("longitude"),
-                timezone=arguments.get("timezone", 5.5)
+                timezone=arguments.get("timezone", 5.5),
             )
             result = get_panchang(req)
-            return [TextContent(
-                type="text",
-                text=f"Tamil Panchang for {arguments.get('date')}:\n\n{format_panchang_response(result)}"
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Tamil Panchang for {arguments.get('date')}:\n\n{format_panchang_response(result)}",
+                )
+            ]
 
         elif name == "get_today_panchang":
             today = date.today().strftime("%Y-%m-%d")
@@ -1827,36 +2351,41 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 date=today,
                 latitude=arguments.get("latitude"),
                 longitude=arguments.get("longitude"),
-                timezone=arguments.get("timezone", 5.5)
+                timezone=arguments.get("timezone", 5.5),
             )
             result = get_panchang(req)
-            return [TextContent(
-                type="text",
-                text=f"Today's Tamil Panchang:\n\n{format_panchang_response(result)}"
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Today's Tamil Panchang:\n\n{format_panchang_response(result)}",
+                )
+            ]
 
         else:
-            return [TextContent(
-                type="text",
-                text=f"Error: Unknown tool '{name}'"
-            )]
+            return [TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
 
     except Exception as e:
-        return [TextContent(
-            type="text",
-            text=f"Error processing request: {str(e)}"
-        )]
+        return [TextContent(type="text", text=f"Error processing request: {str(e)}")]
+
 
 # SSE Transport for MCP
 sse = SseServerTransport("/mcp/messages/")
 
+
 @app.api_route("/mcp/sse", methods=["GET", "POST"])
 async def handle_sse(request: Request):
-    async with sse.connect_sse(request.scope, request.receive, request._send) as (read_stream, write_stream):
-        await mcp_server.run(read_stream, write_stream, mcp_server.create_initialization_options())
+    async with sse.connect_sse(request.scope, request.receive, request._send) as (
+        read_stream,
+        write_stream,
+    ):
+        await mcp_server.run(
+            read_stream, write_stream, mcp_server.create_initialization_options()
+        )
+
 
 app.mount("/mcp/messages/", sse.handle_post_message)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
