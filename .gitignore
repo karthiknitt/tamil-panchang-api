@@ -28,9 +28,11 @@ wheels/
 
 # VS Code
 .vscode/
-.claude
+
+# Claude Code (local only — not shared)
+.claude/
+CLAUDE.md
 *.log
-*.json
 
 # Environment variables
 .env

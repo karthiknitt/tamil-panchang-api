@@ -15,7 +15,6 @@ Key Features:
 import httpx
 import json
 from enum import Enum
-from typing import Optional
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from mcp.server.fastmcp import FastMCP
 
@@ -28,54 +27,55 @@ mcp = FastMCP("tamil_panchang_mcp")
 
 class ResponseFormat(str, Enum):
     """Output format options for tool responses."""
+
     MARKDOWN = "markdown"
     JSON = "json"
 
 
 class PanchangInput(BaseModel):
     """Input model for specific date panchang calculation."""
+
     model_config = ConfigDict(
-        str_strip_whitespace=True,
-        validate_assignment=True,
-        extra='forbid'
+        str_strip_whitespace=True, validate_assignment=True, extra="forbid"
     )
 
     date: str = Field(
         ...,
         description="Date in YYYY-MM-DD format (e.g., '2024-01-15', '2025-12-25')",
-        pattern=r'^\d{4}-\d{2}-\d{2}$',
-        examples=["2024-01-15", "2025-12-25"]
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        examples=["2024-01-15", "2025-12-25"],
     )
     latitude: float = Field(
         ...,
         description="Latitude of location in decimal degrees (-90 to +90). Examples: Chennai=13.0827, Mumbai=19.0760, Delhi=28.7041",
         ge=-90.0,
-        le=90.0
+        le=90.0,
     )
     longitude: float = Field(
         ...,
         description="Longitude of location in decimal degrees (-180 to +180). Examples: Chennai=80.2707, Mumbai=72.8777, Delhi=77.1025",
         ge=-180.0,
-        le=180.0
+        le=180.0,
     )
     timezone: float = Field(
         default=5.5,
         description="UTC offset in hours (e.g., 5.5 for IST, 8.0 for SGT). Default: 5.5 (India Standard Time)",
         ge=-12.0,
-        le=14.0
+        le=14.0,
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' for human-readable formatted text or 'json' for raw structured data"
+        description="Output format: 'markdown' for human-readable formatted text or 'json' for raw structured data",
     )
 
-    @field_validator('date')
+    @field_validator("date")
     @classmethod
     def validate_date(cls, v: str) -> str:
         """Validate date format and range."""
         import datetime
+
         try:
-            date_obj = datetime.datetime.strptime(v, '%Y-%m-%d')
+            date_obj = datetime.datetime.strptime(v, "%Y-%m-%d")
             # Reasonable range check (Swiss Ephemeris supports 13000 BCE to 17000 CE)
             if date_obj.year < 1900 or date_obj.year > 2100:
                 raise ValueError("Date must be between 1900 and 2100")
@@ -86,33 +86,32 @@ class PanchangInput(BaseModel):
 
 class TodayPanchangInput(BaseModel):
     """Input model for today's panchang calculation."""
+
     model_config = ConfigDict(
-        str_strip_whitespace=True,
-        validate_assignment=True,
-        extra='forbid'
+        str_strip_whitespace=True, validate_assignment=True, extra="forbid"
     )
 
     latitude: float = Field(
         ...,
         description="Latitude of location in decimal degrees (-90 to +90). Examples: Chennai=13.0827, Mumbai=19.0760, Delhi=28.7041",
         ge=-90.0,
-        le=90.0
+        le=90.0,
     )
     longitude: float = Field(
         ...,
         description="Longitude of location in decimal degrees (-180 to +180). Examples: Chennai=80.2707, Mumbai=72.8777, Delhi=77.1025",
         ge=-180.0,
-        le=180.0
+        le=180.0,
     )
     timezone: float = Field(
         default=5.5,
         description="UTC offset in hours (e.g., 5.5 for IST, 8.0 for SGT). Default: 5.5 (India Standard Time)",
         ge=-12.0,
-        le=14.0
+        le=14.0,
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
-        description="Output format: 'markdown' for human-readable formatted text or 'json' for raw structured data"
+        description="Output format: 'markdown' for human-readable formatted text or 'json' for raw structured data",
     )
 
 
@@ -135,7 +134,9 @@ def format_panchang_markdown(data: dict) -> str:
 
     if "location" in data:
         loc = data["location"]
-        lines.append(f"**Location:** {loc.get('latitude', 'N/A')}°N, {loc.get('longitude', 'N/A')}°E")
+        lines.append(
+            f"**Location:** {loc.get('latitude', 'N/A')}°N, {loc.get('longitude', 'N/A')}°E"
+        )
         lines.append(f"**Timezone:** UTC+{loc.get('timezone', 5.5)}")
         lines.append("")
 
@@ -168,7 +169,9 @@ def format_panchang_markdown(data: dict) -> str:
     # Inauspicious timings
     lines.append("## ⚠️ Inauspicious Timings")
     lines.append("")
-    lines.append("*Avoid these periods for important activities, new ventures, or auspicious events:*")
+    lines.append(
+        "*Avoid these periods for important activities, new ventures, or auspicious events:*"
+    )
     lines.append("")
     if "rahu_kalam" in data:
         lines.append(f"- **Rahu Kalam:** {data['rahu_kalam']}")
@@ -268,9 +271,9 @@ async def get_panchang(params: PanchangInput) -> str:
                     "date": params.date,
                     "latitude": params.latitude,
                     "longitude": params.longitude,
-                    "timezone": params.timezone
+                    "timezone": params.timezone,
                 },
-                timeout=10.0
+                timeout=10.0,
             )
             response.raise_for_status()
             result = response.json()
@@ -321,9 +324,9 @@ async def get_today_panchang(params: TodayPanchangInput) -> str:
                 json={
                     "latitude": params.latitude,
                     "longitude": params.longitude,
-                    "timezone": params.timezone
+                    "timezone": params.timezone,
                 },
-                timeout=10.0
+                timeout=10.0,
             )
             response.raise_for_status()
             result = response.json()
