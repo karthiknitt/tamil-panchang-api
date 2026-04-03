@@ -29,7 +29,7 @@ def test_panchang():
         "timezone": 5.5,
     }
 
-    response = requests.post(f"{API_BASE_URL}/api/panchang", json=payload)
+    response = requests.post(f"{API_BASE_URL}/api/panchang", json=payload, timeout=10)
 
     print(f"Status: {response.status_code}")
     print("Response:")
@@ -47,7 +47,7 @@ def test_today():
         "timezone": 5.5,
     }
 
-    response = requests.post(f"{API_BASE_URL}/api/today", json=payload)
+    response = requests.post(f"{API_BASE_URL}/api/today", json=payload, timeout=10)
 
     print(f"Status: {response.status_code}")
     print("Response:")
