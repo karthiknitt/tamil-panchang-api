@@ -2,7 +2,7 @@
 FROM python:3.11-slim
 
 # Copy uv binary from official image (no extra layer, no uv version pinned in apt)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -38,6 +38,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000 8001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health'); urllib.request.urlopen('http://localhost:8001/health')" || exit 1
+    CMD python -c "import urllib.request, socket; urllib.request.urlopen('http://localhost:8000/health'); socket.create_connection(('localhost', 8001), timeout=3).close()" || exit 1
 
 CMD ["supervisord", "-c", "/app/supervisord.conf"]
