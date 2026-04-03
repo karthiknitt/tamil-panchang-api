@@ -29,6 +29,9 @@ wheels/
 # VS Code
 .vscode/
 
+# uv virtual environment (local only)
+.venv/
+
 # Claude Code (local only — not shared)
 .claude/
 CLAUDE.md
