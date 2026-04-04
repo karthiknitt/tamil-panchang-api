@@ -3,6 +3,7 @@ name: Docker Build and Push
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
 
@@ -40,7 +41,9 @@ jobs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr
-          type=sha,prefix={{branch}}-,enable=${{ github.event_name == 'push' }}
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-,enable=${{ github.event_name == 'push' && github.ref_type == 'branch' }}
           type=raw,value=latest,enable={{is_default_branch}}
 
     - name: Build and push Docker image
@@ -55,7 +58,7 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Test health endpoint
-      if: github.event_name != 'pull_request'
+      if: github.event_name == 'push' && github.ref_type == 'branch'
       run: |
         docker run -d --name test-api -p 8000:8000 ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:latest
         sleep 15
@@ -64,7 +67,7 @@ jobs:
         docker rm test-api
 
     - name: Test API endpoint
-      if: github.event_name != 'pull_request'
+      if: github.event_name == 'push' && github.ref_type == 'branch'
       run: |
         docker run -d --name test-api -p 8000:8000 ${{ env.REGISTRY_DOCKERHUB }}/${{ env.IMAGE_NAME }}:latest
         sleep 15
