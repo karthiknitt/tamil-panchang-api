@@ -1,18 +1,28 @@
+# syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
-# Set working directory
+# Copy uv binary from official image (no extra layer, no uv version pinned in apt)
+COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
+
 WORKDIR /app
 
-# Install system dependencies needed for pyswisseph
-RUN apt-get update && apt-get install -y \
+# System deps — wget for ephemeris data, build-essential for pyswisseph C extension (no arm64 wheel)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
+    build-essential \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# uv settings: compile bytecode for faster startup; copy files from cache instead of symlinking
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies into /app/.venv
+# Cached separately from app code — only re-runs when pyproject.toml or uv.lock change
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-dev --no-install-project
 
 # Download Swiss Ephemeris data files
 RUN mkdir -p /app/ephe && \
@@ -21,17 +31,20 @@ RUN mkdir -p /app/ephe && \
     wget -q https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/semo_18.se1 && \
     wget -q https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/sepl_18.se1
 
-# Copy application code and configuration
-COPY app.py .
-COPY mcp_server.py .
-COPY supervisord.conf .
+# Copy application code (after deps — so code changes don't bust the dep cache)
+COPY app.py mcp_server.py mcp_server_stdio.py supervisord.conf ./
 
-# Expose ports (FastAPI on 8000, MCP on 8001)
+# Add venv to PATH so supervisord, uvicorn, etc. resolve without full path
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Run as non-root for security
+RUN useradd --system --create-home --uid 10001 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000 8001
 
-# Health check (check both FastAPI and MCP server)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health'); urllib.request.urlopen('http://localhost:8001/health')" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request, socket; urllib.request.urlopen('http://localhost:8000/health'); socket.create_connection(('localhost', 8001), timeout=3).close()" || exit 1
 
-# Run both servers via supervisord
-CMD ["/usr/local/bin/supervisord", "-c", "/app/supervisord.conf"]
+CMD ["supervisord", "-c", "/app/supervisord.conf"]

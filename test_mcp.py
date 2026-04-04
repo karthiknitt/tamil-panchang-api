@@ -6,6 +6,7 @@ Tests the MCP server running on localhost:8001
 
 import asyncio
 import json
+
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
@@ -55,22 +56,14 @@ async def test_mcp_sse():
                             # Try to parse as JSON
                             data = json.loads(result_text)
                             print(f"\n📅 Date: {data.get('date', 'N/A')}")
-                            print(
-                                f"📍 Location: {data.get('location', {}).get('name', 'N/A')}"
-                            )
-                            print(
-                                f"🌙 Tithi: {data.get('tithi', {}).get('name', 'N/A')}"
-                            )
-                            print(
-                                f"⭐ Nakshatra: {data.get('nakshatra', {}).get('name', 'N/A')}"
-                            )
+                            print(f"📍 Location: {data.get('location', {}).get('name', 'N/A')}")
+                            print(f"🌙 Tithi: {data.get('tithi', {}).get('name', 'N/A')}")
+                            print(f"⭐ Nakshatra: {data.get('nakshatra', {}).get('name', 'N/A')}")
                             print(f"☀️ Sunrise: {data.get('sunrise', 'N/A')}")
                             print(f"🌅 Sunset: {data.get('sunset', 'N/A')}")
                         except json.JSONDecodeError:
                             # Not JSON, display as text (probably markdown)
-                            print(
-                                f"\n📄 Result (first 500 chars):\n{result_text[:500]}..."
-                            )
+                            print(f"\n📄 Result (first 500 chars):\n{result_text[:500]}...")
 
                 print("\n✅ All MCP tests passed!")
                 return True
