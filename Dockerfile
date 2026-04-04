@@ -37,6 +37,11 @@ COPY app.py mcp_server.py mcp_server_stdio.py supervisord.conf ./
 # Add venv to PATH so supervisord, uvicorn, etc. resolve without full path
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Run as non-root for security
+RUN useradd --system --create-home --uid 10001 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000 8001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
