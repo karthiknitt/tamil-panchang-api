@@ -6,10 +6,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
 
 WORKDIR /app
 
-# System deps — wget for ephemeris data, gcc for pyswisseph C extension (no arm64 wheel)
+# System deps — wget for ephemeris data, build-essential for pyswisseph C extension (no arm64 wheel)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
-    gcc \
+    build-essential \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
