@@ -6,9 +6,11 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
 
 WORKDIR /app
 
-# System deps — wget for ephemeris data download
+# System deps — wget for ephemeris data, gcc for pyswisseph C extension (no arm64 wheel)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # uv settings: compile bytecode for faster startup; copy files from cache instead of symlinking
