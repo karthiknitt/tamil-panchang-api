@@ -12,11 +12,12 @@ Key Features:
 - Comprehensive tool annotations for AI understanding
 """
 
-import httpx
 import json
-from enum import Enum
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from enum import StrEnum
+
+import httpx
 from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # FastAPI base URL for internal communication
 FASTAPI_BASE = "http://localhost:8000"
@@ -25,7 +26,7 @@ FASTAPI_BASE = "http://localhost:8000"
 mcp = FastMCP("tamil_panchang_mcp")
 
 
-class ResponseFormat(str, Enum):
+class ResponseFormat(StrEnum):
     """Output format options for tool responses."""
 
     MARKDOWN = "markdown"
@@ -35,9 +36,7 @@ class ResponseFormat(str, Enum):
 class PanchangInput(BaseModel):
     """Input model for specific date panchang calculation."""
 
-    model_config = ConfigDict(
-        str_strip_whitespace=True, validate_assignment=True, extra="forbid"
-    )
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
     date: str = Field(
         ...,
@@ -87,9 +86,7 @@ class PanchangInput(BaseModel):
 class TodayPanchangInput(BaseModel):
     """Input model for today's panchang calculation."""
 
-    model_config = ConfigDict(
-        str_strip_whitespace=True, validate_assignment=True, extra="forbid"
-    )
+    model_config = ConfigDict(str_strip_whitespace=True, validate_assignment=True, extra="forbid")
 
     latitude: float = Field(
         ...,

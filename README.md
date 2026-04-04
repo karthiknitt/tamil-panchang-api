@@ -148,10 +148,10 @@ docker-compose -f docker-compose.standalone.yml up -d --build
 curl http://localhost:8000/health
 ```
 
-4. **Test the MCP Server:**
+4. **Test the MCP Server (SSE endpoint):**
 
 ```bash
-curl http://localhost:8001/health
+curl http://localhost:8001/sse
 ```
 
 ## 📖 API Documentation
@@ -887,10 +887,27 @@ Contributions are welcome! Ways to contribute:
 
 **Development Setup:**
 
-1. Fork and clone the repository
-2. Make your changes
-3. Test locally with Docker Compose
-4. Submit a pull request
+```bash
+# Clone and install dependencies (requires uv: https://docs.astral.sh/uv/)
+git clone https://github.com/karthiknitt/tamil-panchang-api.git
+cd tamil-panchang-api
+uv sync
+
+# Run lint + format checks
+uv run ruff check .
+uv run ruff format --check .
+
+# Start API server and run tests
+uv run uvicorn app:app --host 0.0.0.0 --port 8000 &
+sleep 5
+uv run python test_api.py
+```
+
+Or test the full stack with Docker Compose:
+
+```bash
+docker-compose -f docker-compose.standalone.yml up -d --build
+```
 
 ## 📄 License
 

@@ -1,13 +1,13 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from datetime import datetime, date
+import json
+from datetime import date, datetime
+
 import swisseph as swe
-from fastapi import Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
-from mcp.types import Tool, TextContent
-import json
+from mcp.types import TextContent, Tool
+from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="Tamil Panchang API",
@@ -776,9 +776,7 @@ def get_tithi_transitions(start_jd, end_jd, timezone, reference_date):
         if new_tithi["number"] != current_tithi["number"]:
             # Get end time with date
             end_time, end_date = jd_to_datetime(current_jd, timezone, include_date=True)
-            start_time, start_date = jd_to_datetime(
-                tithi_start_jd, timezone, include_date=True
-            )
+            start_time, start_date = jd_to_datetime(tithi_start_jd, timezone, include_date=True)
 
             # Check if different from reference date
             start_suffix = f" ({start_date})" if start_date != reference_date else ""
@@ -887,9 +885,7 @@ def get_nakshatra_transitions(start_jd, end_jd, timezone, reference_date):
         if new_nakshatra["number"] != current_nakshatra["number"]:
             # Get times with dates
             end_time, end_date = jd_to_datetime(current_jd, timezone, include_date=True)
-            start_time, start_date = jd_to_datetime(
-                nakshatra_start_jd, timezone, include_date=True
-            )
+            start_time, start_date = jd_to_datetime(nakshatra_start_jd, timezone, include_date=True)
 
             # Check if different from reference date
             start_suffix = f" ({start_date})" if start_date != reference_date else ""
@@ -911,9 +907,7 @@ def get_nakshatra_transitions(start_jd, end_jd, timezone, reference_date):
 
     # Add the final nakshatra that extends to end of period
     end_time, end_date = jd_to_datetime(end_jd, timezone, include_date=True)
-    start_time, start_date = jd_to_datetime(
-        nakshatra_start_jd, timezone, include_date=True
-    )
+    start_time, start_date = jd_to_datetime(nakshatra_start_jd, timezone, include_date=True)
 
     start_suffix = f" ({start_date})" if start_date != reference_date else ""
     end_suffix = f" ({end_date})" if end_date != reference_date else ""
@@ -1003,9 +997,7 @@ def get_yoga_transitions(start_jd, end_jd, timezone, reference_date):
         if new_yoga["number"] != current_yoga["number"]:
             # Get times with dates
             end_time, end_date = jd_to_datetime(current_jd, timezone, include_date=True)
-            start_time, start_date = jd_to_datetime(
-                yoga_start_jd, timezone, include_date=True
-            )
+            start_time, start_date = jd_to_datetime(yoga_start_jd, timezone, include_date=True)
 
             # Check if different from reference date
             start_suffix = f" ({start_date})" if start_date != reference_date else ""
@@ -1606,16 +1598,12 @@ def get_nalla_neram(gowri_panchangam, inauspicious_timings=None):
     # Filter out times that overlap with inauspicious periods
     if inauspicious_timings:
         day_nalla_neram = filter_auspicious_times(day_nalla_neram, inauspicious_timings)
-        night_nalla_neram = filter_auspicious_times(
-            night_nalla_neram, inauspicious_timings
-        )
+        night_nalla_neram = filter_auspicious_times(night_nalla_neram, inauspicious_timings)
 
     return {"day": day_nalla_neram, "night": night_nalla_neram}
 
 
-def get_hora(
-    sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone, inauspicious_timings=None
-):
+def get_hora(sunrise_jd, sunset_jd, next_sunrise_jd, weekday, timezone, inauspicious_timings=None):
     """
     Calculate Hora (planetary hours) for the day.
     Day is divided into 12 horas from sunrise to sunset.
@@ -1961,14 +1949,8 @@ def get_chandrashtamam(moon_rasi_index, moon_nakshatra_index, moon_nakshatra_nam
                 "number": chandrashtamam_nakshatra_index + 1,
             },
         },
-        "description": "People born with Moon in {} rasi or {} nakshatra are experiencing Chandrashtamam today. This is an inauspicious period lasting approximately 2.25 days.".format(
-            rasi_names[chandrashtamam_rasi_index],
-            NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index],
-        ),
-        "advice": "If your birth Moon (Janma Rasi) is {} or birth nakshatra is {}, avoid important activities, new ventures, travel, and major decisions during this period.".format(
-            rasi_names[chandrashtamam_rasi_index],
-            NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index],
-        ),
+        "description": f"People born with Moon in {rasi_names[chandrashtamam_rasi_index]} rasi or {NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index]} nakshatra are experiencing Chandrashtamam today. This is an inauspicious period lasting approximately 2.25 days.",
+        "advice": f"If your birth Moon (Janma Rasi) is {rasi_names[chandrashtamam_rasi_index]} or birth nakshatra is {NAKSHATRAS_TAMIL[chandrashtamam_nakshatra_index]}, avoid important activities, new ventures, travel, and major decisions during this period.",
     }
 
 
@@ -2001,15 +1983,11 @@ def get_panchang(request: PanchangRequest):
         jd = julian_day(dt.year, dt.month, dt.day, 6, 0, 0)  # 6 AM local time
 
         # Get sunrise and sunset
-        sunrise_jd, sunset_jd = get_sunrise_sunset(
-            jd, request.latitude, request.longitude
-        )
+        sunrise_jd, sunset_jd = get_sunrise_sunset(jd, request.latitude, request.longitude)
 
         # Get next day's sunrise for night Gowri calculations
         next_day_jd = julian_day(dt.year, dt.month, dt.day + 1, 6, 0, 0)
-        next_sunrise_jd, _ = get_sunrise_sunset(
-            next_day_jd, request.latitude, request.longitude
-        )
+        next_sunrise_jd, _ = get_sunrise_sunset(next_day_jd, request.latitude, request.longitude)
 
         # Use sunrise JD for calculations (Tamil day starts at sunrise)
         # Get sidereal positions for accurate Tamil panchang
@@ -2026,15 +2004,9 @@ def get_panchang(request: PanchangRequest):
         weekday_sunday_start = (weekday + 1) % 7  # Convert to Sunday=0
 
         # Calculate inauspicious timings
-        rahu_kalam = get_rahu_kalam(
-            sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone
-        )
-        yamagandam = get_yamagandam(
-            sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone
-        )
-        gulikai = get_gulikai_kalam(
-            sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone
-        )
+        rahu_kalam = get_rahu_kalam(sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone)
+        yamagandam = get_yamagandam(sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone)
+        gulikai = get_gulikai_kalam(sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone)
         dhurmuhurtham = get_dhurmuhurtham(
             sunrise_jd, sunset_jd, weekday_sunday_start, request.timezone
         )
@@ -2189,9 +2161,7 @@ def get_panchang(request: PanchangRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}")
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error calculating panchang: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error calculating panchang: {str(e)}")
 
 
 @app.post("/api/today")
@@ -2378,9 +2348,7 @@ async def handle_sse(request: Request):
         read_stream,
         write_stream,
     ):
-        await mcp_server.run(
-            read_stream, write_stream, mcp_server.create_initialization_options()
-        )
+        await mcp_server.run(read_stream, write_stream, mcp_server.create_initialization_options())
 
 
 app.mount("/mcp/messages/", sse.handle_post_message)
