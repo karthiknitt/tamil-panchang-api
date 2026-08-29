@@ -67,3 +67,5 @@ deploy_instructions.txt
 .env
 .env.production
 .env.local
+.vercel
+.env*
