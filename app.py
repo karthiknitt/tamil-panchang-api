@@ -1,13 +1,18 @@
 import json
+import os
 from datetime import date, datetime
 
 import swisseph as swe
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.types import TextContent, Tool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 
 app = FastAPI(
     title="Tamil Panchang API",
@@ -15,30 +20,112 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS
+# Enable CORS for public API consumers (no cookies/credentials in this API)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Set the ephemeris path
-swe.set_ephe_path("/app/ephe")
+# Restrict Host header to trusted hosts (Vercel domains + local dev)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=[
+        "*.vercel.app",
+        "vercel.app",
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "testserver",
+    ],
+)
+
+# Set the ephemeris path — env var override, then relative to this file, then Docker default.
+_ephe_path = os.environ.get("SWISSEPH_PATH")
+if not _ephe_path:
+    for candidate in ("/app/ephe", os.path.join(os.path.dirname(__file__), "ephe")):
+        if os.path.isdir(candidate):
+            _ephe_path = candidate
+            break
+    _ephe_path = _ephe_path or "/app/ephe"
+swe.set_ephe_path(_ephe_path)
+
+
+# --- Security headers ---
+@app.middleware("http")
+async def security_headers_middleware(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
+
+
+# --- Request body size limit ---
+MAX_REQUEST_BODY_BYTES = 16 * 1024
+
+
+@app.middleware("http")
+async def body_size_limit_middleware(request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_REQUEST_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "Request body too large (max 16KB)"},
+        )
+    return await call_next(request)
+
+
+# --- Rate limiting (per-client IP, uses X-Forwarded-For as set by Vercel) ---
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    client = request.client
+    return client.host if client else "unknown"
+
+
+limiter = Limiter(key_func=_client_ip)
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request, exc):
+    response = JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please retry later."},
+    )
+    retry_after = getattr(exc, "retry_after", None)
+    response.headers["Retry-After"] = str(int(retry_after)) if retry_after else "60"
+    return response
 
 
 class PanchangRequest(BaseModel):
-    date: str = Field(..., description="Date in YYYY-MM-DD format")
-    latitude: float = Field(..., description="Latitude of location")
-    longitude: float = Field(..., description="Longitude of location")
-    timezone: float = Field(5.5, description="Timezone offset (default: IST 5.5)")
+    date: str = Field(
+        ...,
+        description="Date in YYYY-MM-DD format",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    )
+    latitude: float = Field(..., ge=-90, le=90, description="Latitude of location")
+    longitude: float = Field(..., ge=-180, le=180, description="Longitude of location")
+    timezone: float = Field(5.5, ge=-12, le=14, description="Timezone offset (default: IST 5.5)")
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        parsed = datetime.strptime(v, "%Y-%m-%d")
+        if not (1900 <= parsed.year <= 2100):
+            raise ValueError("date must be between 1900 and 2100")
+        return v
 
 
 class LocationRequest(BaseModel):
-    latitude: float
-    longitude: float
-    timezone: float = 5.5
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    timezone: float = Field(5.5, ge=-12, le=14)
 
 
 # Tamil month names
@@ -1973,7 +2060,13 @@ def health_check():
 
 
 @app.post("/api/panchang")
-def get_panchang(request: PanchangRequest):
+@limiter.limit("30/minute;600/hour")
+def panchang_endpoint(request: Request, body: PanchangRequest):
+    """Rate-limited endpoint: complete Tamil Panchang for a given date and location."""
+    return compute_panchang(body)
+
+
+def compute_panchang(request: PanchangRequest):
     """Get complete Tamil Panchang for a given date and location"""
     try:
         # Parse date
@@ -2165,16 +2258,17 @@ def get_panchang(request: PanchangRequest):
 
 
 @app.post("/api/today")
-def get_today_panchang(location: LocationRequest):
-    """Get Tamil Panchang for today"""
+@limiter.limit("60/minute;1000/hour")
+def today_endpoint(request: Request, location: LocationRequest):
+    """Rate-limited endpoint: Tamil Panchang for today."""
     today = date.today().strftime("%Y-%m-%d")
-    request = PanchangRequest(
+    body = PanchangRequest(
         date=today,
         latitude=location.latitude,
         longitude=location.longitude,
         timezone=location.timezone,
     )
-    return get_panchang(request)
+    return compute_panchang(body)
 
 
 # --- MCP Server Integration ---
@@ -2307,7 +2401,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 longitude=arguments.get("longitude"),
                 timezone=arguments.get("timezone", 5.5),
             )
-            result = get_panchang(req)
+            result = compute_panchang(req)
             return [
                 TextContent(
                     type="text",
@@ -2323,7 +2417,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 longitude=arguments.get("longitude"),
                 timezone=arguments.get("timezone", 5.5),
             )
-            result = get_panchang(req)
+            result = compute_panchang(req)
             return [
                 TextContent(
                     type="text",
