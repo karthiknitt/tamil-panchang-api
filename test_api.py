@@ -56,6 +56,34 @@ def test_today():
     print()
 
 
+def test_muhurta():
+    """Test muhurta endpoint for each supported activity"""
+    print("Testing /api/muhurta endpoint...")
+
+    for activity in ("general", "griha_pravesam", "bhoomi_pooja"):
+        payload = {
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-15",
+            "latitude": 10.7905,  # Trichy
+            "longitude": 78.7047,
+            "timezone": 5.5,
+            "activity": activity,
+        }
+
+        response = requests.post(f"{API_BASE_URL}/api/muhurta", json=payload, timeout=10)
+        assert response.status_code == 200, (
+            f"activity={activity} returned {response.status_code}: {response.text}"
+        )
+        data = response.json()
+        assert data["activity"] == activity
+        assert data["total_days_scanned"] == 15
+        assert data["qualifying_count"] == len(data["qualifying_dates"])
+
+        print(f"  {activity}: {data['qualifying_count']} qualifying date(s) of 15 scanned")
+
+    print()
+
+
 def main():
     print("=" * 50)
     print("Tamil Panchang API Tests")
@@ -66,6 +94,7 @@ def main():
         test_health()
         test_panchang()
         test_today()
+        test_muhurta()
         print("✅ All tests passed!")
     except requests.exceptions.ConnectionError:
         print("❌ Error: Could not connect to API")

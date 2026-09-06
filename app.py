@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import swisseph as swe
 from fastapi import FastAPI, HTTPException, Request
@@ -719,6 +719,174 @@ SPECIAL_YOGAS = {
         26: "Siddha",
     },
 }
+
+# --- Muhurta / Vastu date-selection rules (Tamil traditional almanac convention) ---
+#
+# Rikta tithis (4th, 9th, 14th of either paksha) are avoided for auspicious starts.
+# Tithi "number" runs 1-30; number % 15 gives 4, 9, or 14 for all six rikta tithis.
+MUHURTA_RIKTA_TITHI_MOD = {4, 9, 14}
+
+# Amavasya (new moon) is the 30th tithi (Krishna Paksha "Pournami/Amavasya").
+MUHURTA_AMAVASYA_TITHI_NUMBER = 30
+
+# Vishti (Bhadra) karana is classically inauspicious for starting new ventures.
+MUHURTA_EXCLUDED_KARANAS = ["Vishti"]
+
+# Weekdays traditionally avoided for Griha Pravesam / Bhoomi Pooja.
+VASTU_EXCLUDED_VARAS = ["Tuesday", "Saturday"]
+
+# Tamil months traditionally avoided for Griha Pravesam / Bhoomi Pooja.
+VASTU_EXCLUDED_TAMIL_MONTHS = ["Aadi", "Margazhi"]
+
+# Activity-specific Muhurta rules. Each activity layers on top of the "general"
+# Panchanga Shuddhi checks (rikta tithi, Vishti karana, Chandrashtamam, inauspicious
+# Amirthathi Yoga, Marana special yoga).
+#
+# Griha Pravesam (housewarming) reuses MEL_NOKKU_NAKSHATRAS — nakshatras this repo
+# already classifies as "Mel Nokku Naal" (upward-looking, suitable for construction/
+# housewarming/religious ceremonies, see get_nokku_naal()).
+#
+# Bhoomi Pooja (foundation-laying) reuses KEEZH_NOKKU_NAKSHATRAS — nakshatras this
+# repo already classifies as "Keezh Nokku Naal" (downward-looking, suitable for
+# digging/laying foundations, see get_nokku_naal()).
+MUHURTA_ACTIVITY_RULES = {
+    "general": {
+        "label": "General Muhurta",
+        "required_nakshatras": None,
+        "excluded_varas": [],
+        "excluded_tamil_months": [],
+        "exclude_amavasya": False,
+    },
+    "griha_pravesam": {
+        "label": "Griha Pravesam (Housewarming)",
+        "required_nakshatras": MEL_NOKKU_NAKSHATRAS,
+        "excluded_varas": VASTU_EXCLUDED_VARAS,
+        "excluded_tamil_months": VASTU_EXCLUDED_TAMIL_MONTHS,
+        "exclude_amavasya": True,
+    },
+    "bhoomi_pooja": {
+        "label": "Bhoomi Pooja (Foundation-laying)",
+        "required_nakshatras": KEEZH_NOKKU_NAKSHATRAS,
+        "excluded_varas": VASTU_EXCLUDED_VARAS,
+        "excluded_tamil_months": VASTU_EXCLUDED_TAMIL_MONTHS,
+        "exclude_amavasya": True,
+    },
+}
+
+
+MUHURTA_MAX_RANGE_DAYS = 60
+
+
+class MuhurtaRequest(BaseModel):
+    start_date: str = Field(
+        ...,
+        description="Start of the date range to scan, YYYY-MM-DD",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    )
+    end_date: str = Field(
+        ...,
+        description="End of the date range to scan (inclusive), YYYY-MM-DD",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    )
+    latitude: float = Field(..., ge=-90, le=90, description="Latitude of location")
+    longitude: float = Field(..., ge=-180, le=180, description="Longitude of location")
+    timezone: float = Field(5.5, ge=-12, le=14, description="Timezone offset (default: IST 5.5)")
+    activity: str = Field(
+        "general",
+        description=f"Muhurta activity type: one of {sorted(MUHURTA_ACTIVITY_RULES)}",
+    )
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        parsed = datetime.strptime(v, "%Y-%m-%d")
+        if not (1900 <= parsed.year <= 2100):
+            raise ValueError("date must be between 1900 and 2100")
+        return v
+
+    @field_validator("activity")
+    @classmethod
+    def validate_activity(cls, v: str) -> str:
+        if v not in MUHURTA_ACTIVITY_RULES:
+            raise ValueError(f"activity must be one of {sorted(MUHURTA_ACTIVITY_RULES)}")
+        return v
+
+
+def evaluate_muhurta_day(panchang, activity):
+    """
+    Evaluate whether a single day (as returned by compute_panchang) qualifies as
+    an auspicious Muhurta for the given activity, per Tamil traditional almanac
+    convention.
+
+    General Panchanga Shuddhi checks (applied to every activity):
+    - Reject Rikta tithis (4th, 9th, 14th of either paksha)
+    - Reject Vishti (Bhadra) karana
+    - Reject inauspicious Amirthathi Yoga
+    - Reject Marana special yoga
+
+    Activity-specific checks come from MUHURTA_ACTIVITY_RULES:
+    - required_nakshatras: Moon's nakshatra must be in this list (if set)
+    - excluded_varas: weekday (English name) must not be in this list
+    - excluded_tamil_months: Tamil month must not be in this list
+    - exclude_amavasya: reject the 30th tithi (new moon)
+
+    Args:
+        panchang: dict shaped like compute_panchang()'s return value (must
+            contain at least: tithi, karana, nakshatra, amirthathi_yoga,
+            special_yoga, weekday, tamil_month)
+        activity: one of the keys in MUHURTA_ACTIVITY_RULES
+
+    Returns:
+        dict with "qualifies" (bool) and "reasons" (list of str, empty if
+        qualifies is True)
+    """
+    if activity not in MUHURTA_ACTIVITY_RULES:
+        raise ValueError(
+            f"Unknown muhurta activity '{activity}'. "
+            f"Valid activities: {sorted(MUHURTA_ACTIVITY_RULES)}"
+        )
+
+    rules = MUHURTA_ACTIVITY_RULES[activity]
+    reasons = []
+
+    tithi = panchang["tithi"]
+    if tithi["number"] % 15 in MUHURTA_RIKTA_TITHI_MOD:
+        reasons.append(f"Rikta tithi ({tithi['name']}) — avoided for auspicious starts")
+
+    if rules["exclude_amavasya"] and tithi["number"] == MUHURTA_AMAVASYA_TITHI_NUMBER:
+        reasons.append("Amavasya (new moon) — avoided for this activity")
+
+    karana = panchang["karana"]
+    if karana["name"] in MUHURTA_EXCLUDED_KARANAS:
+        reasons.append(f"{karana['name']} karana is inauspicious for new ventures")
+
+    amirthathi_yoga = panchang["amirthathi_yoga"]
+    if amirthathi_yoga["type"] == "Inauspicious":
+        reasons.append(f"Inauspicious Amirthathi Yoga ({amirthathi_yoga['name']})")
+
+    special_yoga = panchang["special_yoga"]
+    if special_yoga["name"] == "Marana":
+        reasons.append("Marana special yoga — inauspicious for starting new ventures")
+
+    nakshatra = panchang["nakshatra"]
+    if (
+        rules["required_nakshatras"] is not None
+        and nakshatra["name"] not in rules["required_nakshatras"]
+    ):
+        reasons.append(
+            f"Nakshatra ({nakshatra['name']}) is not in the approved list for "
+            f"{rules['label']}: {rules['required_nakshatras']}"
+        )
+
+    weekday_english = panchang["weekday"]["english"]
+    if weekday_english in rules["excluded_varas"]:
+        reasons.append(f"{weekday_english} is traditionally avoided for {rules['label']}")
+
+    tamil_month = panchang["tamil_month"]
+    if tamil_month in rules["excluded_tamil_months"]:
+        reasons.append(f"Tamil month {tamil_month} is traditionally avoided for {rules['label']}")
+
+    return {"qualifies": len(reasons) == 0, "reasons": reasons}
 
 
 def julian_day(year, month, day, hour=0, minute=0, second=0):
@@ -2049,6 +2217,7 @@ def read_root():
         "endpoints": {
             "panchang": "/api/panchang",
             "today": "/api/today",
+            "muhurta": "/api/muhurta",
             "health": "/health",
         },
     }
@@ -2271,6 +2440,77 @@ def today_endpoint(request: Request, location: LocationRequest):
     return compute_panchang(body)
 
 
+@app.post("/api/muhurta")
+@limiter.limit("10/minute;100/hour")
+def muhurta_endpoint(request: Request, body: MuhurtaRequest):
+    """Rate-limited endpoint: scan a date range for auspicious Muhurta dates and timings."""
+    return scan_muhurta_dates(body)
+
+
+def scan_muhurta_dates(request: MuhurtaRequest):
+    """
+    Scan a date range and return dates that qualify as auspicious Muhurta dates
+    for the given activity, along with that day's recommended timings (Nalla
+    Neram, Hora) reused from the existing Panchanga engine.
+    """
+    start = datetime.strptime(request.start_date, "%Y-%m-%d").date()
+    end = datetime.strptime(request.end_date, "%Y-%m-%d").date()
+
+    if end < start:
+        raise HTTPException(status_code=400, detail="end_date must not be before start_date")
+
+    total_days = (end - start).days + 1
+    if total_days > MUHURTA_MAX_RANGE_DAYS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Date range too large: {total_days} days (max {MUHURTA_MAX_RANGE_DAYS})",
+        )
+
+    rules = MUHURTA_ACTIVITY_RULES[request.activity]
+    qualifying_dates = []
+
+    for offset in range(total_days):
+        day = start + timedelta(days=offset)
+        panchang_request = PanchangRequest(
+            date=day.strftime("%Y-%m-%d"),
+            latitude=request.latitude,
+            longitude=request.longitude,
+            timezone=request.timezone,
+        )
+        panchang = compute_panchang(panchang_request)
+        verdict = evaluate_muhurta_day(panchang, request.activity)
+
+        if verdict["qualifies"]:
+            qualifying_dates.append(
+                {
+                    "date": panchang["date"],
+                    "weekday": panchang["weekday"],
+                    "tamil_month": panchang["tamil_month"],
+                    "tithi": panchang["tithi"],
+                    "nakshatra": panchang["nakshatra"],
+                    "special_yoga": panchang["special_yoga"],
+                    "recommended_timings": {
+                        "nalla_neram": panchang["nalla_neram"],
+                        "hora": panchang["hora"],
+                    },
+                }
+            )
+
+    return {
+        "activity": request.activity,
+        "activity_label": rules["label"],
+        "location": {
+            "latitude": request.latitude,
+            "longitude": request.longitude,
+            "timezone": request.timezone,
+        },
+        "range": {"start_date": request.start_date, "end_date": request.end_date},
+        "total_days_scanned": total_days,
+        "qualifying_count": len(qualifying_dates),
+        "qualifying_dates": qualifying_dates,
+    }
+
+
 # --- MCP Server Integration ---
 
 mcp_server = Server("tamil-panchang")
@@ -2317,6 +2557,30 @@ def format_panchang_response(data: dict) -> str:
         lines.append(f"  Yamagandam: {data['yamagandam']}")
     if "gulikai_kalam" in data:
         lines.append(f"  Gulikai Kalam: {data['gulikai_kalam']}")
+
+    lines.append("")
+    lines.append("---")
+    lines.append("Raw JSON data (for detailed analysis):")
+    lines.append(json.dumps(data, indent=2, ensure_ascii=False))
+
+    return "\n".join(lines)
+
+
+def format_muhurta_response(data: dict) -> str:
+    """Format the muhurta JSON response into readable text for AI agents."""
+    lines = [
+        f"🗓️ Muhurta Dates: {data['activity_label']} ({data['range']['start_date']} to {data['range']['end_date']})",
+        f"Scanned {data['total_days_scanned']} day(s), found {data['qualifying_count']} qualifying date(s).",
+        "",
+    ]
+    if not data["qualifying_dates"]:
+        lines.append("No qualifying dates found in this range for the requested activity.")
+    else:
+        for entry in data["qualifying_dates"]:
+            lines.append(
+                f"✅ {entry['date']} ({entry['weekday']['english']}, {entry['tamil_month']}) — "
+                f"Nakshatra: {entry['nakshatra']['name']}, Tithi: {entry['tithi']['name']}"
+            )
 
     lines.append("")
     lines.append("---")
@@ -2387,6 +2651,49 @@ async def list_tools() -> list[Tool]:
                 "required": ["latitude", "longitude"],
             },
         ),
+        Tool(
+            name="get_muhurta_dates",
+            description=(
+                "Scan a date range and return auspicious Muhurta dates for a specific activity, "
+                "per Tamil traditional almanac convention. Applies Panchanga Shuddhi checks "
+                "(avoids Rikta tithis, Vishti karana, inauspicious Amirthathi Yoga, Marana special "
+                "yoga) plus activity-specific rules. 'griha_pravesam' (housewarming) and "
+                "'bhoomi_pooja' (foundation-laying) are Vastu-relevant activities that additionally "
+                "require an approved nakshatra, avoid Tuesday/Saturday, and avoid the Tamil months "
+                "Aadi and Margazhi. Each qualifying date includes recommended Nalla Neram/Hora "
+                "timings for that day. Range is capped at 60 days per request."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start of the date range, YYYY-MM-DD",
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End of the date range (inclusive), YYYY-MM-DD",
+                    },
+                    "latitude": {
+                        "type": "number",
+                        "description": "Latitude of location (-90 to +90, e.g., 13.0827 for Chennai)",
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "description": "Longitude of location (-180 to +180, e.g., 80.2707 for Chennai)",
+                    },
+                    "timezone": {
+                        "type": "number",
+                        "description": "UTC offset in hours (e.g., 5.5 for IST). Default: 5.5",
+                    },
+                    "activity": {
+                        "type": "string",
+                        "description": f"One of {sorted(MUHURTA_ACTIVITY_RULES)}. Default: general",
+                    },
+                },
+                "required": ["start_date", "end_date", "latitude", "longitude"],
+            },
+        ),
     ]
 
 
@@ -2424,6 +2731,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     text=f"Today's Tamil Panchang:\n\n{format_panchang_response(result)}",
                 )
             ]
+
+        elif name == "get_muhurta_dates":
+            req = MuhurtaRequest(
+                start_date=arguments.get("start_date"),
+                end_date=arguments.get("end_date"),
+                latitude=arguments.get("latitude"),
+                longitude=arguments.get("longitude"),
+                timezone=arguments.get("timezone", 5.5),
+                activity=arguments.get("activity", "general"),
+            )
+            result = scan_muhurta_dates(req)
+            return [TextContent(type="text", text=format_muhurta_response(result))]
 
         else:
             return [TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
