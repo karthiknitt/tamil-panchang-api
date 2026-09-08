@@ -178,6 +178,7 @@ This application runs **two servers in parallel** within a single Docker contain
 | GET | `/` | API information | None |
 | POST | `/api/today` | Get today's panchang | None |
 | POST | `/api/panchang` | Get panchang for specific date | None |
+| POST | `/api/muhurta` | Scan a date range for auspicious Muhurta/Vastu dates | None |
 | GET | `/docs` | Interactive Swagger UI | None |
 | GET | `/redoc` | Alternative ReDoc docs | None |
 
@@ -189,6 +190,7 @@ Access via SSE endpoint: `/sse` (or `/mcp/sse` in production with Traefik)
 |------|------------|-------------|
 | `get_panchang` | `date`, `latitude`, `longitude`, `timezone` | Get panchang for specific date and location |
 | `get_today_panchang` | `latitude`, `longitude`, `timezone` | Get today's panchang for a location |
+| `get_muhurta_dates` | `start_date`, `end_date`, `latitude`, `longitude`, `timezone`, `activity` | Scan a date range for auspicious Muhurta/Vastu dates |
 
 **MCP Client Example:**
 
@@ -244,6 +246,87 @@ Convenience endpoint for today's date.
   "timezone": 5.5
 }
 ```
+
+#### 3. POST `/api/muhurta` - Scan for Auspicious Muhurta / Vastu Dates
+
+Scans a date range (max 60 days per request) and returns every date that
+passes Panchanga Shuddhi (purity) checks for the requested activity, along
+with that day's recommended Nalla Neram / Hora timing windows.
+
+**Request Body:**
+
+```json
+{
+  "start_date": "2026-05-01",
+  "end_date": "2026-06-15",
+  "latitude": 13.0827,
+  "longitude": 80.2707,
+  "timezone": 5.5,
+  "activity": "griha_pravesam"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description | Example |
+|-------|------|----------|-------------|---------|
+| `start_date` | string | Yes | Start of range, YYYY-MM-DD | "2026-05-01" |
+| `end_date` | string | Yes | End of range (inclusive), YYYY-MM-DD, max 60 days from `start_date` | "2026-06-15" |
+| `latitude` | float | Yes | Latitude (-90 to +90) | 13.0827 |
+| `longitude` | float | Yes | Longitude (-180 to +180) | 80.2707 |
+| `timezone` | float | No | UTC offset (default: 5.5) | 5.5 |
+| `activity` | string | No | One of `general`, `griha_pravesam`, `bhoomi_pooja` (default: `general`) | "griha_pravesam" |
+
+**Activities:**
+
+| Activity | Purpose | Extra rules on top of general Panchanga Shuddhi |
+|----------|---------|---------------------------------------------------|
+| `general` | Any auspicious start | none — just the shared shuddhi checks below |
+| `griha_pravesam` | Housewarming (Vastu) | Nakshatra must be a **Mel Nokku Naal** nakshatra (upward-looking — see [Nokku Naal](#nokku-naal-direction-classification)); avoids Tuesday/Saturday, Aadi, Margazhi, and Amavasya |
+| `bhoomi_pooja` | Foundation-laying (Vastu) | Nakshatra must be a **Keezh Nokku Naal** nakshatra (downward-looking); avoids Tuesday/Saturday, Aadi, Margazhi, and Amavasya |
+
+Every activity also applies these **general Panchanga Shuddhi checks**:
+- Rejects Rikta tithis (4th, 9th, 14th of either paksha)
+- Rejects Vishti (Bhadra) karana
+- Rejects an inauspicious Amirthathi Yoga
+- Rejects a Marana special yoga (see [Special Yogas](#special-yogas))
+
+These rules follow Tamil traditional almanac convention and reuse this
+repo's existing classification tables rather than a separate ruleset —
+Griha Pravesam and Bhoomi Pooja are Vastu-relevant activities distinguished
+only by which direction of Nokku Naal nakshatra they require.
+
+**Example Response (Simplified):**
+
+```json
+{
+  "activity": "griha_pravesam",
+  "activity_label": "Griha Pravesam (Housewarming)",
+  "location": {"latitude": 13.0827, "longitude": 80.2707, "timezone": 5.5},
+  "range": {"start_date": "2026-05-01", "end_date": "2026-06-15"},
+  "total_days_scanned": 46,
+  "qualifying_count": 1,
+  "qualifying_dates": [
+    {
+      "date": "2026-05-13",
+      "weekday": {"tamil": "Budhan", "english": "Wednesday"},
+      "tamil_month": "Chithirai",
+      "tithi": {"number": 11, "name": "Ekadasi", "paksha": "Shukla Paksha"},
+      "nakshatra": {"number": 26, "name": "Uthirattathi"},
+      "special_yoga": {"name": "Siddha", "type": "Auspicious"},
+      "recommended_timings": {
+        "nalla_neram": {"day": [{"name": "Amridha", "type": "auspicious", "start": "12:30:00", "end": "14:00:00"}]},
+        "hora": {"day": [{"hora_number": 1, "planet": "Venus", "start": "06:13:45", "end": "07:10:00"}]}
+      }
+    }
+  ]
+}
+```
+
+Because a full Panchanga Shuddhi check is genuinely strict (this mirrors
+how Tamil almanacs list only a handful of "good dates" per month for major
+events), it's normal for `qualifying_count` to be low, or even zero, over a
+short range — widen the date range if no dates qualify.
 
 ### Response Structure
 
